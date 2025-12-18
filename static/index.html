@@ -3,13 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <title>Knowledge Check</title>
-
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
 <style>
 :root {
   --bg: #f7f8fa;
   --card: #ffffff;
   --primary: #7c9cff;
-  --primary-soft: #e8ecff;
   --green: #9fd3c7;
   --orange: #f6c28b;
   --red: #f2a2a2;
@@ -17,269 +16,171 @@
   --muted: #7a7a7a;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); font-family: sans-serif; color: var(--text); }
 
-body {
-  margin: 0;
-  background: var(--bg);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color: var(--text);
-}
+.container { width: 95%; max-width: 1800px; margin: 20px auto; }
 
-.container {
-  max-width: 960px;
-  margin: auto;
-  padding: 40px 20px;
-}
+/* Layout em Colunas */
+.main-layout { display: grid; grid-template-columns: 72% 25%; gap: 30px; align-items: start; }
 
-h1 {
-  font-size: 32px;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
+@media (max-width: 1100px) { .main-layout { grid-template-columns: 1fr; } }
 
-.subtitle {
-  color: var(--muted);
-  margin-bottom: 30px;
-}
+/* Abas */
+.tabs { display: flex; gap: 5px; margin-bottom: 10px; }
+.tab-btn { padding: 10px 20px; cursor: pointer; border: 1px solid #ddd; background: #f0f0f0; border-radius: 8px 8px 0 0; border: none; font-weight: 600; }
+.tab-btn.active { background: #fff; border-bottom: 3px solid var(--primary); color: var(--primary); }
+.tab-content { display: none; padding: 20px; background: white; border-radius: 0 0 8px 8px; border: 1px solid #ddd; }
+.tab-content.active { display: block; }
 
-textarea {
-  width: 100%;
-  height: 200px;
-  padding: 16px;
-  border-radius: 14px;
-  border: 1px solid #ddd;
-  font-size: 15px;
-  resize: vertical;
-}
+#editor-container { height: 450px; background: white; }
 
-textarea:focus {
-  outline: none;
-  border-color: var(--primary);
-}
+/* Estatísticas na Direita */
+.sidebar-stats { background: white; padding: 20px; border-radius: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+.progress-wrapper { background: #eee; border-radius: 999px; overflow: hidden; height: 20px; margin-bottom: 10px; }
+.progress-bar { height: 100%; background: var(--primary); width: 0%; transition: width 0.5s; }
+.card { padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 10px; color: #fff; font-weight: bold; }
+.card.green { background: var(--green); color: #2d5a50; }
+.card.orange { background: var(--orange); color: #7a4d1d; }
+.card.red { background: var(--red); color: #7a1d1d; }
 
-button {
-  margin-top: 20px;
-  padding: 14px 26px;
-  border-radius: 999px;
-  border: none;
-  background: var(--primary);
-  color: white;
-  font-size: 15px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: 0.2s;
-}
+.section { margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px; }
+.section-header { font-weight: bold; cursor: pointer; margin-bottom: 10px; display: block; }
+.detail { padding: 10px; border-left: 5px solid; margin-bottom: 10px; background: #f9f9f9; border-radius: 4px; }
+.detail.green { border-color: var(--green); }
+.detail.orange { border-color: var(--orange); }
+.detail.red { border-color: var(--red); }
 
-button:hover {
-  opacity: 0.9;
-}
-
-.progress-wrapper {
-  margin-top: 30px;
-  background: #e1e4ea;
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.progress-bar {
-  height: 22px;
-  background: var(--primary);
-  width: 0%;
-  transition: width 0.6s ease;
-}
-
-.progress-label {
-  margin-top: 10px;
-  font-size: 14px;
-  color: var(--muted);
-}
-
-.cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 16px;
-  margin-top: 30px;
-}
-
-.card {
-  background: var(--card);
-  padding: 18px;
-  border-radius: 18px;
-  text-align: center;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.04);
-}
-
-.card .number {
-  font-size: 26px;
-  font-weight: 600;
-}
-
-.card .label {
-  font-size: 14px;
-  color: var(--muted);
-  margin-top: 6px;
-}
-
-.card.green { background: var(--green); }
-.card.orange { background: var(--orange); }
-.card.red { background: var(--red); }
-
-.section {
-  margin-top: 30px;
-  background: var(--card);
-  border-radius: 18px;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.04);
-  overflow: hidden;
-}
-
-.section-header {
-  padding: 18px 22px;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-}
-
-.section-content {
-  padding: 0 22px 18px;
-  display: none;
-}
-
-.section.open .section-content {
-  display: block;
-}
-
-.missing li {
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-
-.detail {
-  border-left: 4px solid;
-  padding: 12px 14px;
-  margin-bottom: 12px;
-  background: #f9f9f9;
-  border-radius: 10px;
-}
-
-.detail.green { border-color: #5bbfa5; }
-.detail.orange { border-color: #e39a4c; }
-.detail.red { border-color: #e36c6c; }
-
+button { padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; transition: 0.3s; }
+.btn-main { background: var(--primary); color: white; width: 100%; margin-top: 15px; }
+.btn-save { background: #28a745; color: white; }
 </style>
 </head>
-
 <body>
 
 <div class="container">
+  <div class="main-layout">
+    
+    <div class="content-left">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="openTab(event, 'tab-editor')">Escrever Resumo</button>
+        <button class="tab-btn" onclick="openTab(event, 'tab-theory')">Gerenciar Teorias</button>
+      </div>
 
-<h1>Knowledge Check</h1>
-<p class="subtitle">Escreva tudo o que você lembra sobre o assunto.</p>
+      <div id="tab-editor" class="tab-content active">
+          <div style="margin-bottom: 15px;">
+              <label>Selecione a teoria base:</label>
+              <select id="theory-select" style="width: 100%; padding: 10px; margin-top: 5px; border-radius: 5px;"></select>
+          </div>
+          <div id="editor-container"></div>
+          <button id="btn-analisar" class="btn-main" onclick="checkKnowledge()">Analisar Meu Conhecimento</button>
+      </div>
 
-<textarea id="userText" placeholder="Digite aqui..."></textarea>
+      <div id="tab-theory" class="tab-content">
+          <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+              <input type="text" id="theory-name" placeholder="Nome da Teoria" style="flex: 2; padding: 10px;">
+              <button onclick="saveTheory()" class="btn-save">Salvar Teoria</button>
+          </div>
+          <textarea id="theory-editor" style="width: 100%; height: 400px; padding: 10px;" placeholder="Cole a teoria aqui..."></textarea>
+      </div>
 
-<button onclick="checkKnowledge()">Analisar conhecimento</button>
+      <div id="detailsSection" class="section" style="display:none;">
+        <span class="section-header">Análise Detalhada por Conceito</span>
+        <div id="details"></div>
+      </div>
+    </div>
 
-<div id="result" style="display:none">
+    <div class="sidebar-stats" id="result-sidebar" style="display: none;">
+      <h3>Seu Desempenho</h3>
+      <div class="progress-wrapper"><div id="progressBar" class="progress-bar"></div></div>
+      <p id="progressLabel" style="font-size: 14px; text-align: center;"></p>
 
-  <div class="progress-wrapper">
-    <div id="progressBar" class="progress-bar"></div>
+      <div class="cards">
+        <div class="card green"> <span id="remembered">0</span><br><small>Lembrados</small> </div>
+        <div class="card orange"> <span id="partial">0</span><br><small>Parciais</small> </div>
+        <div class="card red"> <span id="notRemembered">0</span><br><small>Não Lembrados</small> </div>
+      </div>
+
+      <div class="section">
+        <span class="section-header">O que faltou mencionar:</span>
+        <ul id="missing" style="font-size: 14px; padding-left: 20px;"></ul>
+      </div>
+    </div>
+
   </div>
-  <div class="progress-label" id="progressLabel"></div>
-
-  <div class="cards">
-    <div class="card green">
-      <div class="number" id="remembered"></div>
-      <div class="label">Lembrados</div>
-    </div>
-    <div class="card orange">
-      <div class="number" id="partial"></div>
-      <div class="label">Parciais</div>
-    </div>
-    <div class="card red">
-      <div class="number" id="notRemembered"></div>
-      <div class="label">Não lembrados</div>
-    </div>
-  </div>
-
-  <div class="section" id="missingSection">
-    <div class="section-header" onclick="toggleSection('missingSection')">
-      Pontos não lembrados
-    </div>
-    <div class="section-content">
-      <ul id="missing" class="missing"></ul>
-    </div>
-  </div>
-
-  <div class="section" id="detailsSection">
-    <div class="section-header" onclick="toggleSection('detailsSection')">
-      Análise detalhada
-    </div>
-    <div class="section-content" id="details"></div>
-  </div>
-
 </div>
 
-</div>
-
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 <script>
-function toggleSection(id) {
-  document.getElementById(id).classList.toggle("open");
+var quill = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [['bold', 'italic'], [{ 'list': 'bullet' }], ['clean']] } });
+
+async function loadTheoriesList() {
+    const response = await fetch('/list-theories');
+    const data = await response.json();
+    document.getElementById('theory-select').innerHTML = data.theories.map(t => `<option value="${t}">${t}</option>`).join('');
+}
+
+async function saveTheory() {
+    const name = document.getElementById('theory-name').value.trim();
+    const content = document.getElementById('theory-editor').value;
+    if (!name || !content) return alert("Preencha nome e conteúdo!");
+
+    const response = await fetch('/save-theory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, content })
+    });
+    if (response.ok) { alert("Salvo!"); loadTheoriesList(); }
 }
 
 async function checkKnowledge() {
-  const userText = document.getElementById("userText").value;
-  document.getElementById("result").style.display = "none";
+    const userText = quill.getText();
+    const theoryName = document.getElementById('theory-select').value;
+    const btn = document.getElementById("btn-analisar");
 
-  const response = await fetch("/check-knowledge", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      domain: "Direito Constitucional",
-      user_text: userText
-    })
-  });
+    if (!theoryName) return alert("Selecione uma teoria!");
 
-  const data = await response.json();
+    btn.innerText = "Analisando...";
+    btn.disabled = true;
 
-  document.getElementById("progressBar").style.width =
-    data.coverage_percentage + "%";
-  document.getElementById("progressLabel").innerText =
-    data.coverage_percentage + "% de cobertura do conteúdo";
+    try {
+        const response = await fetch("/check-knowledge", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ theory_name: theoryName, user_text: userText, domain: theoryName })
+        });
+        const data = await response.json();
 
-  document.getElementById("remembered").innerText = data.remembered;
-  document.getElementById("partial").innerText = data.partially_remembered;
-  document.getElementById("notRemembered").innerText = data.not_remembered;
+        // Atualiza UI
+        document.getElementById("progressBar").style.width = data.coverage_percentage + "%";
+        document.getElementById("progressLabel").innerText = data.coverage_percentage + "% de cobertura";
+        document.getElementById("remembered").innerText = data.remembered;
+        document.getElementById("partial").innerText = data.partially_remembered;
+        document.getElementById("notRemembered").innerText = data.not_remembered;
 
-  const missing = document.getElementById("missing");
-  missing.innerHTML = "";
-  data.missing_concepts.forEach(item => {
-    const li = document.createElement("li");
-    li.textContent = item;
-    missing.appendChild(li);
-  });
+        const missing = document.getElementById("missing");
+        missing.innerHTML = data.missing_concepts.map(item => `<li>${item}</li>`).join('');
 
-  const details = document.getElementById("details");
-  details.innerHTML = "";
-  data.detailed_analysis.forEach(item => {
-    let color = "red";
-    if (item.status === "remembered") color = "green";
-    if (item.status === "partially_remembered") color = "orange";
+        const details = document.getElementById("details");
+        details.innerHTML = data.detailed_analysis.map(item => {
+            let color = item.status === "remembered" ? "green" : (item.status === "partially_remembered" ? "orange" : "red");
+            return `<div class="detail ${color}"><b>${item.concept}</b><br>${item.explanation}</div>`;
+        }).join('');
 
-    details.innerHTML += `
-      <div class="detail ${color}">
-        <b>${item.concept}</b><br>
-        ${item.explanation}
-      </div>
-    `;
-  });
-
-  document.getElementById("result").style.display = "block";
+        document.getElementById("result-sidebar").style.display = "block";
+        document.getElementById("detailsSection").style.display = "block";
+    } catch (e) { alert("Erro na análise."); }
+    finally { btn.innerText = "Analisar Meu Conhecimento"; btn.disabled = false; }
 }
-</script>
 
+function openTab(evt, tabName) {
+    document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById(tabName).classList.add("active");
+    evt.currentTarget.classList.add("active");
+}
+
+window.onload = loadTheoriesList;
+</script>
 </body>
 </html>
