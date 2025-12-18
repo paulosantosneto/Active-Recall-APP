@@ -1,0 +1,49 @@
+1. Introdução
+1.1 Conceitos Básicos
+Definição → aspecto do mundo real; coleção de dados logicamente coerente; finalidade específica.
+Dado X informação → dado é o conteúdo bruto, enquanto informação é o dado processado.
+Abrangência → DB; SGDB; SDB.
+DB: é o banco de dados em si. Tem como características: natureza autodescritiva; abstração de dados; múltiplas visões de dados; compartilhamento. 
+Dentro de compartilhamento, existem as transações, dividas em (DICA=ACID):
+consistência – estado válido; 
+isolamento – não ter conhecimento uma das outras; 
+atomicidade – executadas sempre por completo ou nunca executadas; 
+durabilidade – persistir ao longo do tempo.
+SGBD – Sistema Gerenciador de Banco de Dados → funcionalidades de gerenciamento para o banco de dados.
+SBD – Sistema de Banco de Dados → é a união entre DB e SGBD.
+catálogos → são os metadados que orientam as informações dos bancos de dados, como tipagem da coluna, título da tabela e etc.
+Sujeitos: DBA ou AD. O DBA – Database Administrator – é responsável pelo suporte técnico do banco de dados. O DBA tem como recursos primários o banco de dados e secundário o SGBD e os softwares relacionados. Já o AD – Administrator of Data – é o projetista dos dados, responsável pela padronização, definição da tipagem e etc.
+Redundância dos Dados: os dados podem ter Redundância Controlada de Dados – o software faz todas atualizações e gerenciamento das redundâncias – ou Redundância Não Controlada – o usuário tem que atualizar por si só.
+Metadados: 
+Quanto à Classificação (DICA=TOC):
+Técnicos → captura o tamanho, tipos de dados, nome dos campos, etc;
+Operacionais → frequência de atualização dos dados, onde estão localizados, qualidade dos dados, etc;
+Comerciais → O que os dados significam para o usuário final, nomes comerciais, descrições, tags.
+Quanto ao Tipo (DICA=DEA):
+Descritivos → visam à pesquisa, recuperação e identificação (título, autor, palavras-chave);
+Estruturais → vinculam de forma hierárquica distintos objetos digitais de um mesmo documento;
+Administrativos → gerência de recursos arquivísticos.
+Evolução Histórica: 
+1964, Em Rede (grafo);
+1966, Hierárquico (árvore) com registro proprietário (nó pai) e registro membro (nó filho);
+
+1970, Relacional → criada a linguagem SQL (Structured Query Language);
+Escalabilidade: horizontal – mais equipamentos e particionamento da estrutura de dados – e vertical – aumento da capacidade do equipamento em que o SGBD está instalado.
+
+1976, Entidade Relacionamento;
+1978, Semânticos
+1985, Orientado à Objetos;
+1990, Objeto Relacional
+2009, NoSQL (Big Data) → 5Vs (volume + variedade + velocidade + veracidade + valor).
+BASE (BAsically Available, Soft state, Eventually consistency).
+Hadoop para processamento e análise de grandes volumes de dados.
+Dados semiestruturados → XML ou JSON.
+
+NoSQL
+Bases de Dados:
+Chave/valor (key/value) → alta escalabilidade, mas limitados para consultas com grau de complexidade maior, com muitas chaves e valores envolvidos. Exemplo: DynamoDB.
+Orientado a Documentos → chaves são cadeias de caracteres, enquanto os valores podem ser objetos ou parte deles (parte de um texto, por exemplo). Exemplo: MongoDB.
+Orientado a Grafos → podem trabalhar com índices (acesso mais rápido), sendo úteis para redes sociais, sistemas de recomendações e etc. Exemplo: Neo4j.
+Colunar: utilizados em soluções de análises de negócio. Exemplo: MariaDB.
+
+

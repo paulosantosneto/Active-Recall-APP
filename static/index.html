@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8" />
+<title>Knowledge Check</title>
+
+<style>
+:root {
+  --bg: #f7f8fa;
+  --card: #ffffff;
+  --primary: #7c9cff;
+  --primary-soft: #e8ecff;
+  --green: #9fd3c7;
+  --orange: #f6c28b;
+  --red: #f2a2a2;
+  --text: #2e2e2e;
+  --muted: #7a7a7a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--text);
+}
+
+.container {
+  max-width: 960px;
+  margin: auto;
+  padding: 40px 20px;
+}
+
+h1 {
+  font-size: 32px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  color: var(--muted);
+  margin-bottom: 30px;
+}
+
+textarea {
+  width: 100%;
+  height: 200px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid #ddd;
+  font-size: 15px;
+  resize: vertical;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+button {
+  margin-top: 20px;
+  padding: 14px 26px;
+  border-radius: 999px;
+  border: none;
+  background: var(--primary);
+  color: white;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+.progress-wrapper {
+  margin-top: 30px;
+  background: #e1e4ea;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 22px;
+  background: var(--primary);
+  width: 0%;
+  transition: width 0.6s ease;
+}
+
+.progress-label {
+  margin-top: 10px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-top: 30px;
+}
+
+.card {
+  background: var(--card);
+  padding: 18px;
+  border-radius: 18px;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+}
+
+.card .number {
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.card .label {
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.card.green { background: var(--green); }
+.card.orange { background: var(--orange); }
+.card.red { background: var(--red); }
+
+.section {
+  margin-top: 30px;
+  background: var(--card);
+  border-radius: 18px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+  overflow: hidden;
+}
+
+.section-header {
+  padding: 18px 22px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+}
+
+.section-content {
+  padding: 0 22px 18px;
+  display: none;
+}
+
+.section.open .section-content {
+  display: block;
+}
+
+.missing li {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.detail {
+  border-left: 4px solid;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: #f9f9f9;
+  border-radius: 10px;
+}
+
+.detail.green { border-color: #5bbfa5; }
+.detail.orange { border-color: #e39a4c; }
+.detail.red { border-color: #e36c6c; }
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Knowledge Check</h1>
+<p class="subtitle">Escreva tudo o que você lembra sobre o assunto.</p>
+
+<textarea id="userText" placeholder="Digite aqui..."></textarea>
+
+<button onclick="checkKnowledge()">Analisar conhecimento</button>
+
+<div id="result" style="display:none">
+
+  <div class="progress-wrapper">
+    <div id="progressBar" class="progress-bar"></div>
+  </div>
+  <div class="progress-label" id="progressLabel"></div>
+
+  <div class="cards">
+    <div class="card green">
+      <div class="number" id="remembered"></div>
+      <div class="label">Lembrados</div>
+    </div>
+    <div class="card orange">
+      <div class="number" id="partial"></div>
+      <div class="label">Parciais</div>
+    </div>
+    <div class="card red">
+      <div class="number" id="notRemembered"></div>
+      <div class="label">Não lembrados</div>
+    </div>
+  </div>
+
+  <div class="section" id="missingSection">
+    <div class="section-header" onclick="toggleSection('missingSection')">
+      Pontos não lembrados
+    </div>
+    <div class="section-content">
+      <ul id="missing" class="missing"></ul>
+    </div>
+  </div>
+
+  <div class="section" id="detailsSection">
+    <div class="section-header" onclick="toggleSection('detailsSection')">
+      Análise detalhada
+    </div>
+    <div class="section-content" id="details"></div>
+  </div>
+
+</div>
+
+</div>
+
+<script>
+function toggleSection(id) {
+  document.getElementById(id).classList.toggle("open");
+}
+
+async function checkKnowledge() {
+  const userText = document.getElementById("userText").value;
+  document.getElementById("result").style.display = "none";
+
+  const response = await fetch("/check-knowledge", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      domain: "Direito Constitucional",
+      user_text: userText
+    })
+  });
+
+  const data = await response.json();
+
+  document.getElementById("progressBar").style.width =
+    data.coverage_percentage + "%";
+  document.getElementById("progressLabel").innerText =
+    data.coverage_percentage + "% de cobertura do conteúdo";
+
+  document.getElementById("remembered").innerText = data.remembered;
+  document.getElementById("partial").innerText = data.partially_remembered;
+  document.getElementById("notRemembered").innerText = data.not_remembered;
+
+  const missing = document.getElementById("missing");
+  missing.innerHTML = "";
+  data.missing_concepts.forEach(item => {
+    const li = document.createElement("li");
+    li.textContent = item;
+    missing.appendChild(li);
+  });
+
+  const details = document.getElementById("details");
+  details.innerHTML = "";
+  data.detailed_analysis.forEach(item => {
+    let color = "red";
+    if (item.status === "remembered") color = "green";
+    if (item.status === "partially_remembered") color = "orange";
+
+    details.innerHTML += `
+      <div class="detail ${color}">
+        <b>${item.concept}</b><br>
+        ${item.explanation}
+      </div>
+    `;
+  });
+
+  document.getElementById("result").style.display = "block";
+}
+</script>
+
+</body>
+</html>
