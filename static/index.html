@@ -1,186 +1,1469 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-br" data-theme="dark">
 <head>
 <meta charset="UTF-8" />
-<title>Knowledge Check</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Active Recall</title>
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #f7f8fa;
-  --card: #ffffff;
-  --primary: #7c9cff;
-  --green: #9fd3c7;
-  --orange: #f6c28b;
-  --red: #f2a2a2;
-  --text: #2e2e2e;
-  --muted: #7a7a7a;
+  --bg:#0a0a0b; --panel:#0f0f11; --raised:#141417;
+  --border:#232327; --border-soft:#1a1a1d;
+  --text:#ededf0; --muted:#8b8b93; --dim:#5f5f68;
+  --accent:#7c9cff; --on-accent:#0a0a0b;
+  --ok:#3fb950; --warn:#d29922; --err:#f85149; --none:#6e7681;
+  --ok-bg:rgba(63,185,80,.10); --warn-bg:rgba(210,153,34,.10);
+  --err-bg:rgba(248,81,73,.10); --none-bg:rgba(110,118,129,.10);
+  --mk-warn:rgba(210,153,34,.22); --mk-err:rgba(248,81,73,.22); --mk-ok:rgba(63,185,80,.13);
+  --shadow:none; --radius:10px;
+}
+:root[data-theme="light"] {
+  --bg:#fbfbfc; --panel:#ffffff; --raised:#f4f4f6;
+  --border:#e3e3e8; --border-soft:#eeeef1;
+  --text:#18181b; --muted:#63636d; --dim:#9a9aa4;
+  --accent:#4f6ef0; --on-accent:#ffffff;
+  --ok:#1a7f37; --warn:#9a6700; --err:#cf222e; --none:#6e7781;
+  --ok-bg:rgba(26,127,55,.08); --warn-bg:rgba(154,103,0,.08);
+  --err-bg:rgba(207,34,46,.08); --none-bg:rgba(110,119,129,.08);
+  --mk-warn:rgba(212,167,44,.34); --mk-err:rgba(255,129,130,.34); --mk-ok:rgba(74,194,107,.22);
+  --shadow:0 1px 2px rgba(0,0,0,.04);
 }
 
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); font-family: sans-serif; color: var(--text); }
+* { box-sizing:border-box; }
+html, body { height:100%; }
+body {
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+::-webkit-scrollbar { width:9px; height:9px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:6px; }
 
-.container { width: 95%; max-width: 1800px; margin: 20px auto; }
+.topbar {
+  height:53px; border-bottom:1px solid var(--border); display:flex; align-items:center;
+  gap:14px; padding:0 18px; position:sticky; top:0; background:var(--bg); z-index:20;
+}
+.brand { display:flex; align-items:center; gap:9px; font-weight:600; letter-spacing:-.01em; }
+.brand .mark { width:22px; height:22px; border-radius:6px; background:linear-gradient(140deg,var(--accent),#5f7ae0);
+  display:grid; place-items:center; font-size:10px; font-weight:600; color:var(--on-accent); }
+.spacer { flex:1; }
+.icon-btn { width:30px; height:30px; border-radius:7px; border:1px solid var(--border);
+  background:transparent; color:var(--muted); cursor:pointer; display:grid; place-items:center; }
+.icon-btn:hover { background:var(--raised); color:var(--text); }
+.crumb { font-size:12px; color:var(--dim); }
+.crumb b { color:var(--muted); font-weight:500; }
 
-/* Layout em Colunas */
-.main-layout { display: grid; grid-template-columns: 72% 25%; gap: 30px; align-items: start; }
+.shell { display:grid; grid-template-columns:228px minmax(0,1fr) 525px; min-height:calc(100vh - 53px); align-items:start; }
+body.no-side .shell { grid-template-columns:228px minmax(0,1fr); }
+body.no-side .side { display:none; }
+.rail { border-right:1px solid var(--border); padding:16px 12px 30px; position:sticky; top:53px; align-self:stretch; }
+.main { padding:24px 28px 70px; min-width:0; }
+.side {
+  border-left:1px solid var(--border); position:sticky; top:53px;
+  height:calc(100vh - 53px); overflow-y:auto; padding:20px 16px 40px;
+}
 
-@media (max-width: 1100px) { .main-layout { grid-template-columns: 1fr; } }
+.label { font-size:11px; font-weight:500; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--dim); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; }
 
-/* Abas */
-.tabs { display: flex; gap: 5px; margin-bottom: 10px; }
-.tab-btn { padding: 10px 20px; cursor: pointer; border: 1px solid #ddd; background: #f0f0f0; border-radius: 8px 8px 0 0; border: none; font-weight: 600; }
-.tab-btn.active { background: #fff; border-bottom: 3px solid var(--primary); color: var(--primary); }
-.tab-content { display: none; padding: 20px; background: white; border-radius: 0 0 8px 8px; border: 1px solid #ddd; }
-.tab-content.active { display: block; }
+/* ------------------------------------------------------------------ tree */
+.disc { margin-bottom:2px; }
+.disc-head { display:flex; align-items:center; gap:6px; width:100%; padding:6px 8px; border:none;
+  background:transparent; border-radius:7px; color:var(--text); font:inherit; font-size:13px;
+  font-weight:500; cursor:pointer; text-align:left; min-width:0; }
+.disc-head:hover { background:var(--raised); }
+.disc-head .caret { color:var(--dim); font-size:10px; width:10px; flex:none; transition:transform .15s; }
+/* o nome trunca em vez de quebrar em duas linhas: sem isto, nome longo vira
+   item flex encolhido e o texto se parte no meio do rail */
+.disc-head .nome { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.disc.closed .caret { transform:rotate(-90deg); }
+.disc.closed .topics { display:none; }
+.disc-head .n { flex:none; font-size:11px; color:var(--dim); font-variant-numeric:tabular-nums; }
+.topics { padding-left:10px; margin:1px 0 4px 13px; border-left:1px solid var(--border-soft); }
+.topic { display:block; width:100%; text-align:left; padding:5px 9px; border:none; background:transparent;
+  border-radius:6px; color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.topic:hover { background:var(--raised); color:var(--text); }
+.topic.active { background:var(--raised); color:var(--text); box-shadow:inset 2px 0 0 var(--accent); }
+.btn-ghost { width:100%; padding:8px; margin-top:12px; border:1px dashed var(--border); border-radius:8px;
+  background:transparent; color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer; }
+.btn-ghost:hover { border-color:var(--accent); color:var(--text); }
 
-#editor-container { height: 450px; background: white; }
+/* o × de apagar só aparece no hover da linha, para não poluir a árvore */
+.item { position:relative; }
+.item > button:first-child { padding-right:24px; }
+.del { position:absolute; right:3px; top:50%; transform:translateY(-50%);
+  border:none; background:none; color:var(--dim); cursor:pointer;
+  font-size:15px; line-height:1; padding:1px 5px; border-radius:4px; opacity:0;
+  transition:opacity .12s, color .12s, background .12s; }
+.item:hover .del, .del:focus-visible { opacity:1; }
+.del:hover { color:var(--err); background:var(--err-bg); }
 
-/* Estatísticas na Direita */
-.sidebar-stats { background: white; padding: 20px; border-radius: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-.progress-wrapper { background: #eee; border-radius: 999px; overflow: hidden; height: 20px; margin-bottom: 10px; }
-.progress-bar { height: 100%; background: var(--primary); width: 0%; transition: width 0.5s; }
-.card { padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 10px; color: #fff; font-weight: bold; }
-.card.green { background: var(--green); color: #2d5a50; }
-.card.orange { background: var(--orange); color: #7a4d1d; }
-.card.red { background: var(--red); color: #7a1d1d; }
+/* ------------------------------------------------------------------ main */
+h1 { font-size:19px; font-weight:600; letter-spacing:-.01em; margin:0; }
+.sub { font-size:13px; color:var(--muted); margin-top:3px; }
+.tabs { display:flex; gap:20px; border-bottom:1px solid var(--border); margin:20px 0; }
+.tab { border:none; background:none; padding:0 0 10px; margin-bottom:-1px; color:var(--muted);
+  font:inherit; font-size:13px; cursor:pointer; border-bottom:1.5px solid transparent; }
+.tab:hover { color:var(--text); }
+.tab.active { color:var(--text); border-bottom-color:var(--text); }
+.pane { display:none; }
+.pane.active { display:block; }
 
-.section { margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px; }
-.section-header { font-weight: bold; cursor: pointer; margin-bottom: 10px; display: block; }
-.detail { padding: 10px; border-left: 5px solid; margin-bottom: 10px; background: #f9f9f9; border-radius: 4px; }
-.detail.green { border-color: var(--green); }
-.detail.orange { border-color: var(--orange); }
-.detail.red { border-color: var(--red); }
+.card { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow); overflow:hidden; }
+.actions { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:14px; }
+.acao { display:flex; align-items:center; gap:10px; }
+[hidden] { display:none !important; }   /* vence o display das classes acima */
+.counter { font-size:12.5px; color:var(--dim); font-variant-numeric:tabular-nums; }
+.btn { border:none; border-radius:8px; cursor:pointer; font:inherit; font-size:13px; font-weight:600;
+  padding:9px 18px; transition:filter .15s, opacity .15s; }
+.btn-primary { background:var(--accent); color:var(--on-accent); }
+.btn-primary:hover:not(:disabled) { filter:brightness(1.08); }
+.btn:disabled { opacity:.5; cursor:default; }
+.btn-outline { background:transparent; border:1px solid var(--border); color:var(--text); font-weight:500; }
+.btn-outline:hover { background:var(--raised); border-color:var(--accent); }
+kbd { font:inherit; font-size:11px; color:var(--dim); border:1px solid var(--border); border-radius:4px; padding:1px 5px; }
 
-button { padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; transition: 0.3s; }
-.btn-main { background: var(--primary); color: white; width: 100%; margin-top: 15px; }
-.btn-save { background: #28a745; color: white; }
+.ql-toolbar.ql-snow { border:none !important; border-bottom:1px solid var(--border) !important; padding:7px 10px; background:var(--raised); }
+.ql-container.ql-snow { border:none !important; font-family:inherit; font-size:14.5px; }
+.ql-editor { min-height:340px; line-height:1.75; padding:18px 20px; color:var(--text); }
+.ql-editor.ql-blank::before { color:var(--dim); font-style:normal; left:20px; }
+.ql-snow .ql-stroke { stroke:var(--muted); }
+.ql-snow .ql-fill { fill:var(--muted); }
+.ql-snow.ql-toolbar button:hover .ql-stroke, .ql-snow.ql-toolbar button.ql-active .ql-stroke { stroke:var(--accent); }
+.ql-snow.ql-toolbar button:hover .ql-fill, .ql-snow.ql-toolbar button.ql-active .ql-fill { fill:var(--accent); }
+/* o Quill assume tema claro: sem isto o seletor de título fica ilegível no escuro */
+.ql-snow .ql-picker { color:var(--muted); }
+.ql-snow .ql-picker-options { background:var(--raised); border-color:var(--border) !important; border-radius:7px; }
+.ql-snow .ql-picker-item { color:var(--muted); }
+.ql-snow .ql-picker-item:hover, .ql-snow .ql-picker-item.ql-selected { color:var(--accent); }
+.ql-snow .ql-picker-label:hover, .ql-snow .ql-picker-label.ql-active { color:var(--accent); }
+.ql-snow .ql-picker-label:hover .ql-stroke { stroke:var(--accent); }
+.ql-toolbar.ql-snow .ql-formats { margin-right:10px; }
+.ql-editor h2 { font-size:17px; font-weight:600; margin:14px 0 6px; }
+.ql-editor h3 { font-size:15px; font-weight:600; margin:12px 0 5px; }
+.ql-editor blockquote { border-left:3px solid var(--border); padding-left:12px; margin-left:0; color:var(--muted); }
+.ql-editor pre.ql-syntax { background:var(--raised); color:var(--text); border-radius:6px; padding:10px 12px; }
+
+/* -------------------------------------------------------------- revisão */
+.review { padding:20px 22px; font-size:14.5px; line-height:1.9; min-height:340px; white-space:pre-wrap; }
+/* sem padding horizontal: senão a marcação empurra a pontuação vizinha */
+.mk { background:none; color:inherit; border-radius:3px; padding:2px 0; cursor:default;
+  box-decoration-break:clone; -webkit-box-decoration-break:clone;
+  transition:background .15s, box-shadow .15s; }
+.mk.warn { background:var(--mk-warn); box-shadow:inset 0 -2px 0 var(--warn); }
+.mk.err  { background:var(--mk-err);  box-shadow:inset 0 -2px 0 var(--err); }
+.mk.ok   { box-shadow:inset 0 -2px 0 var(--mk-ok); }
+/* antes de .focus de propósito: mesma especificidade, então o hover ainda vence */
+.mk.done { background:none; box-shadow:none; opacity:.4; }
+.mk.focus { background:var(--accent); color:var(--on-accent); box-shadow:none; opacity:1; }
+.review-note { font-size:12.5px; color:var(--dim); }
+
+/* --------------------------------------------------------------- painel */
+.score { padding:14px 15px; margin-bottom:16px; }
+.score .big { display:flex; align-items:baseline; gap:5px; }
+.score .big b { font-size:28px; font-weight:600; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+.score .big span { font-size:12.5px; color:var(--muted); }
+.bar { height:4px; background:var(--border-soft); border-radius:999px; overflow:hidden; margin:9px 0 12px; }
+.bar > i { display:block; height:100%; width:0; background:var(--accent); border-radius:999px; transition:width .6s cubic-bezier(.4,0,.2,1); }
+.tally { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; }
+.tally div { display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted); }
+.tally b { margin-left:auto; color:var(--text); font-variant-numeric:tabular-nums; }
+.dot { width:7px; height:7px; border-radius:50%; flex:none; }
+.dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)}
+.dot.err{background:var(--err)} .dot.none{background:var(--none)}
+
+.detail { background:var(--panel); border:1px solid var(--border); border-left-width:2px;
+  border-radius:8px; padding:11px 13px; margin-bottom:7px; box-shadow:var(--shadow);
+  transition:border-color .15s, background .15s, transform .15s; }
+.detail.ok{border-left-color:var(--ok)} .detail.warn{border-left-color:var(--warn)}
+.detail.err{border-left-color:var(--err)} .detail.none{border-left-color:var(--none)}
+.detail { cursor:pointer; }
+.detail.focus { border-color:var(--accent); background:var(--raised); transform:translateX(-2px); }
+.detail .top { display:flex; align-items:center; gap:9px; }
+.detail .concept { font-size:12.5px; font-weight:600; flex:1; }
+
+/* revisado: some de vista sem sair da lista */
+.detail.done { opacity:.4; }
+.detail.done .concept { text-decoration:line-through; text-decoration-thickness:1px; }
+.tick { width:14px; height:14px; flex:none; border:1px solid var(--border); border-radius:4px;
+  display:grid; place-items:center; transition:background .12s, border-color .12s; }
+.tick::after { content:"✓"; font-size:9px; line-height:1; color:var(--on-accent); opacity:0; }
+.detail:hover .tick { border-color:var(--accent); }
+.detail.done .tick { background:var(--accent); border-color:var(--accent); }
+.detail.done .tick::after { opacity:1; }
+.linkbtn { background:none; border:none; padding:0; font:inherit; font-size:11px;
+  color:var(--dim); cursor:pointer; text-transform:none; letter-spacing:0; }
+.linkbtn:hover { color:var(--accent); }
+.progresso.tudo { color:var(--ok); }
+.detail .why { font-size:12px; color:var(--muted); line-height:1.55; margin-top:5px; }
+.detail .quote { font-size:11.5px; color:var(--dim); margin-top:6px; padding-left:8px;
+  border-left:2px solid var(--border); font-style:italic; }
+.tag { display:block; font-size:9.5px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--dim); margin-bottom:3px; font-style:normal; }
+/* trecho da teoria: fundo próprio, para não se confundir com o que você escreveu */
+.ref { font-size:12px; color:var(--muted); line-height:1.6; margin-top:8px;
+  padding:8px 11px; background:var(--raised); border-radius:6px;
+  border-left:2px solid var(--accent); white-space:pre-wrap; }
+.detail.done .ref { background:none; }
+.chip { font-size:9.5px; font-weight:500; letter-spacing:.06em; text-transform:uppercase;
+  padding:2px 6px; border-radius:999px; border:1px solid; white-space:nowrap; }
+.chip.ok{color:var(--ok);border-color:var(--ok);background:var(--ok-bg)}
+.chip.warn{color:var(--warn);border-color:var(--warn);background:var(--warn-bg)}
+.chip.err{color:var(--err);border-color:var(--err);background:var(--err-bg)}
+.chip.none{color:var(--none);border-color:var(--none);background:var(--none-bg)}
+
+.chips { display:flex; flex-wrap:wrap; gap:5px; }
+.miss-chip { font-size:11.5px; color:var(--muted); background:var(--raised);
+  border:1px solid var(--border); border-radius:999px; padding:3px 9px; }
+.block { margin-top:18px; }
+.empty { border:1px dashed var(--border); border-radius:8px; padding:20px 14px; text-align:center;
+  font-size:12.5px; color:var(--dim); line-height:1.6; }
+.err-box { border:1px solid var(--err); background:var(--err-bg); color:var(--err); border-radius:8px;
+  padding:12px 13px; font-size:12px; line-height:1.55; white-space:pre-wrap; }
+.aviso { border:1px solid var(--warn); background:var(--warn-bg); color:var(--warn);
+  border-radius:8px; padding:11px 13px; font-size:12px; line-height:1.55; margin-bottom:14px; }
+.aviso b { color:inherit; }
+.err-box b { display:block; margin-bottom:4px; }
+.loading { height:2px; background:var(--border-soft); border-radius:999px; overflow:hidden; }
+.loading > i { display:block; height:100%; width:32%; background:var(--accent); border-radius:999px;
+  animation:slide 1.1s ease-in-out infinite; }
+@keyframes slide { 0%{transform:translateX(-110%)} 100%{transform:translateX(420%)} }
+
+/* ---------------------------------------------------------------- forms */
+.field { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+.field > span { font-size:12px; color:var(--muted); }
+.row2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+input[type=text], textarea { background:var(--panel); border:1px solid var(--border); border-radius:8px;
+  color:var(--text); font:inherit; padding:10px 12px; width:100%; }
+input:focus, textarea:focus { outline:none; border-color:var(--accent);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+textarea { resize:vertical; line-height:1.7; font-size:13.5px; }
+::placeholder { color:var(--dim); }
+
+/* barra de ferramentas da teoria: insere marcadores de TEXTO, não formatação
+   rica — a teoria vai literal para o modelo e ancora o campo "reference" */
+.tt-bar { display:flex; align-items:center; gap:2px; padding:7px 9px;
+  background:var(--raised); border-bottom:1px solid var(--border); }
+.tt { min-width:27px; height:25px; border:none; background:none; border-radius:5px;
+  color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer;
+  display:grid; place-items:center; transition:background .12s, color .12s; }
+.tt:hover { background:var(--bg); color:var(--accent); }
+.tt-txt { min-width:0; padding:0 8px; font-size:11.5px; }
+.tt-sep { width:1px; height:16px; background:var(--border); margin:0 6px; }
+.card > textarea {
+  border:none; border-radius:0; background:var(--panel); display:block;
+  height:calc(100vh - 430px); min-height:400px;
+}
+.card > textarea:focus { box-shadow:none; }
+
+/* Prints colados. Ficam fora do textarea, que só guarda texto: no meio da
+   teoria entra apenas o marcador "[imagem: x.png]", removido antes de o
+   texto ir para o modelo. */
+.tt-imgs { display:flex; flex-wrap:wrap; gap:8px; padding:10px;
+  border-top:1px solid var(--border); background:var(--raised); }
+.tt-imgs:empty { display:none; }
+.thumb { position:relative; width:88px; height:62px; border-radius:6px; overflow:hidden;
+  border:1px solid var(--border); background:var(--bg); cursor:zoom-in; }
+.thumb:hover { border-color:var(--accent); }
+.thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.thumb .x { position:absolute; top:3px; right:3px; width:18px; height:18px; padding:0;
+  border:none; border-radius:4px; background:rgba(0,0,0,.65); color:#fff;
+  font-size:11px; line-height:1; cursor:pointer; opacity:0; transition:opacity .12s; }
+.thumb:hover .x { opacity:1; }
+.thumb .x:hover { background:var(--err); }
+.lightbox { text-align:center; }
+.lightbox img { max-width:100%; max-height:76vh; border-radius:8px; }
+
+/* ------------------------------------------------- modos e roteiro */
+.modos { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+/* só o modo selecionado tem preenchimento: nos dois temas isso lê igual,
+   enquanto claro-vs-escuro se inverte de um tema para o outro */
+.seg { display:inline-flex; background:transparent; border:1px solid var(--border);
+  border-radius:8px; padding:2px; }
+.modo { border:none; background:none; color:var(--muted); font:inherit; font-size:12px;
+  padding:5px 13px; border-radius:6px; cursor:pointer; transition:background .12s, color .12s; }
+.modo:hover { color:var(--text); }
+.modo.active { background:var(--raised); color:var(--text); font-weight:500; }
+.modo-nota { font-size:11.5px; color:var(--dim); }
+
+.roteiro { display:flex; flex-direction:column; gap:16px; }
+.rt-topo { display:flex; align-items:baseline; gap:8px; }
+.rt-topo b { font-size:12px; font-weight:600; }
+.rt-prog { font-size:11px; color:var(--dim); margin-left:auto; }
+.rt-bloco > .t { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--dim); margin-bottom:7px; }
+.rt-lista { display:flex; flex-wrap:wrap; gap:6px; }
+/* o termo é um alvo de clique: marcar conforme escreve é o gesto principal */
+.termo { display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+  background:var(--raised); border:1px solid var(--border); border-radius:7px;
+  padding:5px 9px; font-size:12px; color:var(--text); user-select:none;
+  transition:opacity .14s, border-color .14s, background .14s; }
+.termo:hover { border-color:var(--accent); }
+.termo .bx { width:12px; height:12px; border:1.5px solid var(--dim); border-radius:3px;
+  flex:0 0 auto; display:grid; place-items:center; font-size:9px; line-height:1;
+  color:transparent; }
+.termo.feito { opacity:.42; }
+.termo.feito .bx { background:var(--ok); border-color:var(--ok); color:#fff; }
+.termo.feito .nm { text-decoration:line-through; }
+.rt-aviso { font-size:11.5px; color:var(--warn); background:var(--warn-bg);
+  border:1px solid var(--border); border-radius:8px; padding:9px 11px; line-height:1.5; }
+.rt-aviso button { margin-top:7px; }
+.modo-tag { font-size:10px; padding:1px 6px; border-radius:4px; background:var(--raised);
+  border:1px solid var(--border); color:var(--dim); }
+
+/* --------------------------------------------------------- estatísticas */
+/* Uma tabela só: disciplina no primeiro nível, tópicos recuados embaixo. */
+.d-row td { background:var(--raised); border-top:1px solid var(--border); font-weight:500; cursor:pointer; }
+.d-row:first-child td { border-top:none; }
+/* nada de display:flex num td: tira a célula do cálculo de colunas da tabela */
+.d-row td:first-child { padding-left:12px; }
+.d-row .caret { display:inline-block; width:12px; color:var(--dim); font-size:9px;
+  transition:transform .15s; }
+.d-row.closed .caret { transform:rotate(-90deg); }
+.d-row .meta { font-size:11px; color:var(--dim); font-weight:400; margin-left:8px; }
+.d-row:hover td { background:var(--border-soft); }
+.t-row td:first-child { padding-left:46px; }
+.t-row.hide { display:none; }
+.t-row td { font-size:12.5px; }
+.badge { font-size:12px; font-weight:600; padding:2px 9px; border-radius:999px; border:1px solid; font-variant-numeric:tabular-nums; }
+.badge.ok{color:var(--ok);border-color:var(--ok);background:var(--ok-bg)}
+.badge.warn{color:var(--warn);border-color:var(--warn);background:var(--warn-bg)}
+.badge.err{color:var(--err);border-color:var(--err);background:var(--err-bg)}
+.badge.none{color:var(--dim);border-color:var(--border);background:transparent}
+table { width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); }
+th { font-size:11px; font-weight:500; letter-spacing:.06em; text-transform:uppercase; color:var(--dim);
+  text-align:right; padding:9px 14px; border-bottom:1px solid var(--border); background:var(--raised); }
+th:first-child { text-align:left; }
+td { padding:10px 14px; border-bottom:1px solid var(--border-soft); font-size:13px; text-align:right;
+  font-variant-numeric:tabular-nums; }
+td:first-child { text-align:left; font-variant-numeric:normal; }
+tr:last-child td { border-bottom:none; }
+tbody tr:hover td { background:var(--raised); }
+tr.never td { color:var(--dim); }
+.tlink { background:none; border:none; padding:0; font:inherit; color:inherit; cursor:pointer; text-align:left; }
+.tlink:hover { color:var(--accent); }
+.spark { display:inline-flex; align-items:flex-end; gap:2px; height:20px; }
+.spark i { width:4px; min-height:2px; border-radius:1px; display:block; }
+.spark i.ok{background:var(--ok)} .spark i.warn{background:var(--warn)} .spark i.err{background:var(--err)}
+.delta { font-size:11px; margin-left:5px; }
+.delta.up{color:var(--ok)} .delta.down{color:var(--err)}
+.atraso-ok { color:var(--muted); }
+.atraso-warn { color:var(--warn); font-weight:500; }
+.atraso-err { color:var(--err); font-weight:500; }
+
+/* ----------------------------------------------------------------- modal */
+.overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:60;
+  display:grid; place-items:center; padding:28px; }
+:root[data-theme="light"] .overlay { background:rgba(20,20,25,.35); }
+.modal { background:var(--bg); border:1px solid var(--border); border-radius:12px;
+  width:min(920px,100%); max-height:88vh; display:flex; flex-direction:column;
+  box-shadow:0 18px 50px rgba(0,0,0,.45); }
+.modal header { display:flex; align-items:center; gap:12px; padding:16px 20px;
+  border-bottom:1px solid var(--border); }
+.modal header h2 { font-size:15px; font-weight:600; margin:0; }
+.meta { font-size:12px; color:var(--dim); font-weight:400; }
+.modal .corpo { overflow-y:auto; padding:18px 20px 24px; }
+.hbtn { border:none; background:none; color:var(--dim); font:inherit; font-size:11px;
+  cursor:pointer; padding:2px 7px; border-radius:5px; border:1px solid transparent; }
+.hbtn:hover { color:var(--accent); border-color:var(--accent); }
+
+.seq { display:inline-flex; gap:3px; align-items:center; }
+.seq i { width:8px; height:8px; border-radius:2px; display:block; }
+.seq i.ok{background:var(--ok)} .seq i.partial{background:var(--warn)}
+.seq i.incorrect{background:var(--err)} .seq i.missing{background:var(--none)}
+.conc-nome { font-weight:500; }
+.conc-nota { font-size:11.5px; color:var(--dim); margin-top:3px; line-height:1.45; }
+tr.limpo td { color:var(--dim); }
+.legenda { display:flex; gap:14px; flex-wrap:wrap; font-size:11px; color:var(--dim); margin-top:10px; }
+.legenda span { display:flex; align-items:center; gap:5px; }
+
+#toast { position:fixed; bottom:20px; right:20px; background:var(--raised); border:1px solid var(--border);
+  border-radius:8px; padding:10px 14px; font-size:13px; opacity:0; transform:translateY(6px);
+  pointer-events:none; transition:opacity .2s, transform .2s; z-index:50; }
+#toast.show { opacity:1; transform:translateY(0); }
+
+@media (max-width:1300px) {
+  .shell, body.no-side .shell { grid-template-columns:210px minmax(0,1fr); }
+  .side { grid-column:1/-1; position:static; height:auto; border-left:none; border-top:1px solid var(--border); }
+}
+@media (max-width:860px) {
+  .shell, body.no-side .shell { grid-template-columns:1fr; }
+  .rail { border-right:none; border-bottom:1px solid var(--border); position:static; }
+  .main { padding:20px 16px 40px; }
+  .row2 { grid-template-columns:1fr; }
+}
 </style>
 </head>
 <body>
 
-<div class="container">
-  <div class="main-layout">
-    
-    <div class="content-left">
-      <div class="tabs">
-        <button class="tab-btn active" onclick="openTab(event, 'tab-editor')">Escrever Resumo</button>
-        <button class="tab-btn" onclick="openTab(event, 'tab-theory')">Gerenciar Teorias</button>
-      </div>
+<header class="topbar">
+  <div class="brand"><span class="mark">AR</span> Active Recall</div>
+  <div class="crumb" id="crumb"></div>
+  <div class="spacer"></div>
+  <button class="icon-btn" id="btn-tema" title="Alternar tema" onclick="alternarTema()">◐</button>
+</header>
 
-      <div id="tab-editor" class="tab-content active">
-          <div style="margin-bottom: 15px;">
-              <label>Selecione a teoria base:</label>
-              <select id="theory-select" style="width: 100%; padding: 10px; margin-top: 5px; border-radius: 5px;"></select>
-          </div>
-          <div id="editor-container"></div>
-          <button id="btn-analisar" class="btn-main" onclick="checkKnowledge()">Analisar Meu Conhecimento</button>
-      </div>
+<div class="shell">
+  <aside class="rail">
+    <div class="label">Disciplinas <span id="disc-count"></span></div>
+    <div id="tree"></div>
+    <button class="btn-ghost" onclick="novoTopico()">+ Novo tópico</button>
+  </aside>
 
-      <div id="tab-theory" class="tab-content">
-          <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-              <input type="text" id="theory-name" placeholder="Nome da Teoria" style="flex: 2; padding: 10px;">
-              <button onclick="saveTheory()" class="btn-save">Salvar Teoria</button>
-          </div>
-          <textarea id="theory-editor" style="width: 100%; height: 400px; padding: 10px;" placeholder="Cole a teoria aqui..."></textarea>
-      </div>
+  <main class="main">
+    <h1 id="head-title">Nenhum tópico selecionado</h1>
+    <div class="sub" id="head-sub">Cadastre uma disciplina e um tópico para começar.</div>
 
-      <div id="detailsSection" class="section" style="display:none;">
-        <span class="section-header">Análise Detalhada por Conceito</span>
-        <div id="details"></div>
-      </div>
+    <div class="tabs">
+      <button class="tab active" data-pane="pane-recall">Escrever resumo</button>
+      <button class="tab" data-pane="pane-theory">Editar teoria</button>
+      <button class="tab" data-pane="pane-stats">Estatísticas</button>
     </div>
 
-    <div class="sidebar-stats" id="result-sidebar" style="display: none;">
-      <h3>Seu Desempenho</h3>
-      <div class="progress-wrapper"><div id="progressBar" class="progress-bar"></div></div>
-      <p id="progressLabel" style="font-size: 14px; text-align: center;"></p>
-
-      <div class="cards">
-        <div class="card green"> <span id="remembered">0</span><br><small>Lembrados</small> </div>
-        <div class="card orange"> <span id="partial">0</span><br><small>Parciais</small> </div>
-        <div class="card red"> <span id="notRemembered">0</span><br><small>Não Lembrados</small> </div>
+    <section id="pane-recall" class="pane active">
+      <div class="modos" id="modos">
+        <div class="seg">
+          <button class="modo active" data-modo="livre">Livre</button>
+          <button class="modo" data-modo="dicas">Com dicas</button>
+        </div>
+        <span class="modo-nota" id="modo-nota"></span>
       </div>
-
-      <div class="section">
-        <span class="section-header">O que faltou mencionar:</span>
-        <ul id="missing" style="font-size: 14px; padding-left: 20px;"></ul>
+      <div id="edit-wrap" class="card"><div id="editor"></div></div>
+      <div id="review-wrap" hidden><div class="card review" id="review"></div></div>
+      <div class="actions">
+        <span class="counter" id="counter">0 palavras</span>
+        <div class="acao" id="acao-editar">
+          <kbd>Ctrl</kbd><kbd>Enter</kbd>
+          <button class="btn btn-primary" id="btn-analisar" onclick="analisar()">Analisar</button>
+        </div>
+        <div id="acao-revisao" hidden>
+          <button class="btn btn-outline" onclick="voltarAoEditor()">Editar texto</button>
+        </div>
       </div>
-    </div>
+    </section>
 
-  </div>
+    <section id="pane-theory" class="pane">
+      <div class="row2">
+        <label class="field"><span>Disciplina</span>
+          <input type="text" id="f-disc" list="discs" placeholder="ex: Banco de Dados" autocomplete="off">
+          <datalist id="discs"></datalist></label>
+        <label class="field"><span>Tópico</span>
+          <input type="text" id="f-topic" placeholder="ex: Modelo Relacional" autocomplete="off"></label>
+      </div>
+      <div class="field"><span>Teoria de referência</span>
+        <div class="card">
+          <div class="tt-bar">
+            <button type="button" class="tt" data-tt="titulo" title="Título de seção (##)">H</button>
+            <button type="button" class="tt" data-tt="bullet" title="Lista com marcadores">•</button>
+            <button type="button" class="tt" data-tt="numero" title="Lista numerada">1.</button>
+            <span class="tt-sep"></span>
+            <button type="button" class="tt" data-tt="seta" title="Inserir seta de definição">→</button>
+            <button type="button" class="tt" data-tt="hifen" title="Inserir travessão">–</button>
+            <button type="button" class="tt" data-tt="regra" title="Separador de seção">──</button>
+            <span class="tt-sep"></span>
+            <button type="button" class="tt" data-tt="recuar" title="Recuar linha">»</button>
+            <button type="button" class="tt tt-txt" data-tt="limpar" title="Remover marcadores da linha">limpar</button>
+          </div>
+          <textarea id="f-content" placeholder="Cole aqui o material que serve de gabarito...
+Continua sendo texto puro: é ele que vai literalmente para o modelo.
+Ctrl+V de um print também funciona — a imagem fica salva abaixo."></textarea>
+          <div class="tt-imgs" id="f-imgs"></div>
+        </div>
+      </div>
+      <div class="actions">
+        <span class="counter" id="theory-counter">0 caracteres</span>
+        <button class="btn btn-outline" onclick="salvarTeoria()">Salvar</button>
+      </div>
+    </section>
+
+    <section id="pane-stats" class="pane"><div id="stats"></div></section>
+  </main>
+
+  <aside class="side" id="side"><div id="painel"></div></aside>
 </div>
+
+<div id="toast"></div>
+<div id="modal"></div>
 
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 <script>
-var quill = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [['bold', 'italic'], [{ 'list': 'bullet' }], ['clean']] } });
+const state = { disciplinas:[], disc:null, topic:null, fechadas:new Set(),
+                carregando:false, texto:"", teoria:"", itens:[], revisados:new Set(),
+                // roteiro do modo "com dicas": o que veio do servidor e quais
+                // termos já foram marcados nesta sessão
+                modo:"livre", roteiro:null, marcados:new Set() };
 
-async function loadTheoriesList() {
-    const response = await fetch('/list-theories');
-    const data = await response.json();
-    document.getElementById('theory-select').innerHTML = data.theories.map(t => `<option value="${t}">${t}</option>`).join('');
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
+  ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+/* ------------------------------------------------------------------ tema */
+function aplicarTema(t) {
+  document.documentElement.dataset.theme = t;
+  $("btn-tema").textContent = t === "dark" ? "◐" : "◑";
+  try { localStorage.setItem("ar-tema", t); } catch (e) {}
+}
+function alternarTema() {
+  aplicarTema(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+}
+(function () {
+  let t = null;
+  try { t = localStorage.getItem("ar-tema"); } catch (e) {}
+  aplicarTema(t || "dark");
+})();
+
+const quill = new Quill("#editor", {
+  theme: "snow",
+  placeholder: "Escreva aqui tudo o que você lembra sobre o tópico...",
+  modules: { toolbar: [
+    [{ header: [2, 3, false] }],
+    ["bold", "italic", "underline", "strike"],
+    [{ list: "ordered" }, { list: "bullet" }],
+    [{ indent: "-1" }, { indent: "+1" }],
+    ["blockquote", "code-block"],
+    ["clean"]
+  ] }
+});
+
+/* O modelo mistura inglês e português, e "not_remembered" contém "remembered":
+   a ordem dos testes abaixo importa. */
+function statusKey(s) {
+  const t = String(s || "").toLowerCase();
+  if (t.includes("incorrect") || t.includes("incorret") || t.includes("errad")) return "err";
+  if (t.includes("partial") || t.includes("parcial")) return "warn";
+  if (t.includes("not") || t.includes("não") || t.includes("nao")) return "none";
+  if (t.includes("remember") || t.includes("lembr")) return "ok";
+  return "none";
+}
+const ROTULO = { ok:"lembrado", warn:"parcial", err:"incorreto", none:"não lembrado" };
+const faixa = v => v >= 70 ? "ok" : v >= 40 ? "warn" : "err";
+
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._id);
+  toast._id = setTimeout(() => t.classList.remove("show"), 2600);
 }
 
-async function saveTheory() {
-    const name = document.getElementById('theory-name').value.trim();
-    const content = document.getElementById('theory-editor').value;
-    if (!name || !content) return alert("Preencha nome e conteúdo!");
+/* ------------------------------------------------- casamento de trechos */
 
-    const response = await fetch('/save-theory', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, content })
-    });
-    if (response.ok) { alert("Salvo!"); loadTheoriesList(); }
+/* Normaliza para comparar (minúsculas, sem acento, espaços colapsados) e
+   guarda o índice original de cada caractere, para reconstruir o intervalo. */
+function normalizar(s) {
+  const mapa = []; let out = ""; let espaco = true;
+  for (let i = 0; i < s.length; i++) {
+    const bruto = s[i];
+    if (/\s/.test(bruto)) {
+      if (!espaco) { out += " "; mapa.push(i); espaco = true; }
+      continue;
+    }
+    const c = bruto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    if (!c) continue;
+    out += c[0]; mapa.push(i); espaco = false;
+  }
+  return { texto: out, mapa };
 }
 
-async function checkKnowledge() {
-    const userText = quill.getText();
-    const theoryName = document.getElementById('theory-select').value;
-    const btn = document.getElementById("btn-analisar");
-
-    if (!theoryName) return alert("Selecione uma teoria!");
-
-    btn.innerText = "Analisando...";
-    btn.disabled = true;
-
-    try {
-        const response = await fetch("/check-knowledge", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ theory_name: theoryName, user_text: userText, domain: theoryName })
-        });
-        const data = await response.json();
-
-        // Atualiza UI
-        document.getElementById("progressBar").style.width = data.coverage_percentage + "%";
-        document.getElementById("progressLabel").innerText = data.coverage_percentage + "% de cobertura";
-        document.getElementById("remembered").innerText = data.remembered;
-        document.getElementById("partial").innerText = data.partially_remembered;
-        document.getElementById("notRemembered").innerText = data.not_remembered;
-
-        const missing = document.getElementById("missing");
-        missing.innerHTML = data.missing_concepts.map(item => `<li>${item}</li>`).join('');
-
-        const details = document.getElementById("details");
-        details.innerHTML = data.detailed_analysis.map(item => {
-            let color = item.status === "remembered" ? "green" : (item.status === "partially_remembered" ? "orange" : "red");
-            return `<div class="detail ${color}"><b>${item.concept}</b><br>${item.explanation}</div>`;
-        }).join('');
-
-        document.getElementById("result-sidebar").style.display = "block";
-        document.getElementById("detailsSection").style.display = "block";
-    } catch (e) { alert("Erro na análise."); }
-    finally { btn.innerText = "Analisar Meu Conhecimento"; btn.disabled = false; }
+/* O modelo raramente copia 100% literal. Tenta o trecho inteiro; falhando,
+   procura a maior sequência de palavras dele que exista no texto. */
+function localizar(hay, alvo) {
+  if (!alvo || alvo.length < 4) return null;
+  const i = hay.indexOf(alvo);
+  if (i >= 0) return [i, alvo.length];
+  const pal = alvo.split(" ").filter(Boolean);
+  for (let n = pal.length - 1; n >= 3; n--) {
+    for (let ini = 0; ini + n <= pal.length; ini++) {
+      const t = pal.slice(ini, ini + n).join(" ");
+      const j = hay.indexOf(t);
+      if (j >= 0) return [j, t.length];
+    }
+  }
+  return null;
 }
 
-function openTab(evt, tabName) {
-    document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
-    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-    document.getElementById(tabName).classList.add("active");
-    evt.currentTarget.classList.add("active");
+function renderRevisao(texto, itens) {
+  const H = normalizar(texto);
+  const brutas = [];
+  itens.forEach((it, idx) => {
+    it._k = statusKey(it.status);
+    it._marcado = false;
+    if (it._k === "none") return;                       // não escreveu: nada a marcar
+    const ev = (it.evidence || "").trim();
+    if (!ev) { it._semTrecho = true; return; }
+    const achado = localizar(H.texto, normalizar(ev).texto.trim());
+    if (!achado) { it._semTrecho = true; return; }
+    brutas.push({ ini:H.mapa[achado[0]], fim:H.mapa[achado[0]+achado[1]-1]+1, idx, k:it._k });
+  });
+
+  brutas.sort((a, b) => a.ini - b.ini || b.fim - a.fim);
+  const marcas = []; let fimAnterior = 0;
+  for (const m of brutas) {
+    if (m.ini < fimAnterior) { itens[m.idx]._semTrecho = true; continue; }  // sobreposto
+    marcas.push(m); fimAnterior = m.fim; itens[m.idx]._marcado = true;
+  }
+
+  let html = "", pos = 0;
+  for (const m of marcas) {
+    html += esc(texto.slice(pos, m.ini));
+    html += `<mark class="mk ${m.k}" data-idx="${m.idx}">${esc(texto.slice(m.ini, m.fim))}</mark>`;
+    pos = m.fim;
+  }
+  html += esc(texto.slice(pos));
+  $("review").innerHTML = html;
+  return marcas.length;
 }
 
-window.onload = loadTheoriesList;
+function focar(idx, on) {
+  document.querySelectorAll('[data-idx="' + idx + '"]').forEach(el => {
+    el.classList.toggle("focus", on);
+    if (on) el.scrollIntoView({ block:"nearest" });
+  });
+}
+
+/* -------------------------------------------------------------- árvore */
+
+async function carregarArvore() {
+  const r = await fetch("/disciplines");
+  state.disciplinas = (await r.json()).disciplines || [];
+  $("disc-count").textContent = state.disciplinas.length || "";
+  $("discs").innerHTML = state.disciplinas.map(d => `<option value="${esc(d.name)}">`).join("");
+  $("tree").innerHTML = state.disciplinas.length ? state.disciplinas.map(d => `
+    <div class="disc${state.fechadas.has(d.name) ? " closed" : ""}" data-disc="${esc(d.name)}">
+      <div class="item">
+        <button class="disc-head" title="${esc(d.name)}"><span class="caret">▼</span><span class="nome">${esc(d.name)}</span><span class="n">${d.topics.length}</span></button>
+        <button class="del" data-del-disc="1" title="Apagar disciplina">×</button>
+      </div>
+      <div class="topics">${d.topics.map(t => `
+        <div class="item">
+          <button class="topic${d.name === state.disc && t === state.topic ? " active" : ""}" data-topic="${esc(t)}" title="${esc(t)}">${esc(t)}</button>
+          <button class="del" data-del-topic="${esc(t)}" title="Apagar tópico">×</button>
+        </div>`
+      ).join("") || `<div style="font-size:12px;color:var(--dim);padding:5px 9px">sem tópicos</div>`}</div>
+    </div>`).join("")
+    : `<div class="empty" style="padding:14px 12px">Nenhuma disciplina.<br>Crie a primeira abaixo.</div>`;
+  if (!state.topic) {
+    const d = state.disciplinas.find(x => x.topics.length);
+    if (d) selecionar(d.name, d.topics[0]);
+  }
+}
+
+function selecionar(disc, topic) {
+  state.disc = disc; state.topic = topic;
+  document.querySelectorAll(".topic").forEach(el =>
+    el.classList.toggle("active",
+      el.dataset.topic === topic && el.closest(".disc").dataset.disc === disc));
+  $("crumb").innerHTML = `<b>${esc(disc)}</b> / ${esc(topic)}`;
+  voltarAoEditor();
+  // o roteiro e os checks são de um tópico só; trocar de tópico zera os dois
+  state.roteiro = null; state.marcados.clear();
+  vazio();
+  cabecalho(abaAtiva());
+  if ($("pane-theory").classList.contains("active")) carregarTeoria();
+}
+
+$("tree").addEventListener("click", e => {
+  const del = e.target.closest(".del");
+  if (del) {
+    const disc = del.closest(".disc").dataset.disc;
+    del.dataset.delTopic !== undefined
+      ? apagarTopico(disc, del.dataset.delTopic)
+      : apagarDisciplina(disc);
+    return;
+  }
+  const head = e.target.closest(".disc-head");
+  if (head) {
+    const bloco = head.closest(".disc"), nome = bloco.dataset.disc;
+    bloco.classList.toggle("closed");
+    bloco.classList.contains("closed") ? state.fechadas.add(nome) : state.fechadas.delete(nome);
+    return;
+  }
+  const t = e.target.closest(".topic");
+  if (t) selecionar(t.closest(".disc").dataset.disc, t.dataset.topic);
+});
+
+/* -------------------------------------------------------------- teoria */
+
+async function textoDaTeoria(disc, topic) {
+  try {
+    const q = `?discipline=${encodeURIComponent(disc)}&topic=${encodeURIComponent(topic)}`;
+    const r = await fetch("/theory" + q);
+    return r.ok ? (await r.json()).content || "" : "";
+  } catch (e) { return ""; }
+}
+
+async function carregarTeoria() {
+  if (!state.topic) return;
+  $("f-disc").value = state.disc; $("f-topic").value = state.topic;
+  $("f-content").value = "carregando...";
+  const q = `?discipline=${encodeURIComponent(state.disc)}&topic=${encodeURIComponent(state.topic)}`;
+  const r = await fetch("/theory" + q);
+  $("f-content").value = r.ok ? (await r.json()).content || "" : "";
+  contarTeoria(); carregarImagens();
+}
+
+function novoTopico() {
+  trocarAba("pane-theory");
+  $("f-disc").value = state.disc || ""; $("f-topic").value = ""; $("f-content").value = "";
+  $("f-imgs").innerHTML = "";
+  contarTeoria(); $("f-topic").focus();
+}
+
+/* Apagar é irreversível e leva o histórico junto, então confirma antes
+   dizendo exatamente o que some. */
+async function apagar(url, aviso, ok) {
+  if (!confirm(aviso)) return;
+  const r = await fetch(url, { method: "DELETE" });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) return toast(d.detail || `Falha ao apagar (HTTP ${r.status}).`);
+  state.disc = null; state.topic = null;
+  $("crumb").innerHTML = ""; voltarAoEditor(); vazio();
+  await carregarArvore();
+  cabecalho(abaAtiva());
+  if (abaAtiva() === "pane-stats") carregarStats();
+  toast(ok(d));
+}
+
+function apagarTopico(disc, topic) {
+  return apagar(
+    `/theory?discipline=${encodeURIComponent(disc)}&topic=${encodeURIComponent(topic)}`,
+    `Apagar o tópico "${topic}" de ${disc}?\n\nIsso remove a teoria e todo o histórico de desempenho dele. Não dá para desfazer.`,
+    d => `"${topic}" apagado (${d.attempts_removed || 0} tentativa(s) removidas).`
+  );
+}
+
+function apagarDisciplina(disc) {
+  const n = (state.disciplinas.find(x => x.name === disc) || {}).topics || [];
+  return apagar(
+    `/discipline?discipline=${encodeURIComponent(disc)}`,
+    `Apagar a disciplina "${disc}" inteira?\n\nIsso remove ${n.length} tópico(s) e todo o histórico deles. Não dá para desfazer.`,
+    d => `"${disc}" apagada (${d.topics_removed || 0} tópico(s), ${d.attempts_removed || 0} tentativa(s)).`
+  );
+}
+
+async function salvarTeoria() {
+  const discipline = $("f-disc").value.trim(), topic = $("f-topic").value.trim();
+  const content = $("f-content").value;
+  if (!discipline || !topic || !content.trim()) return toast("Preencha disciplina, tópico e conteúdo.");
+  const r = await fetch("/theory", { method:"POST", headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ discipline, topic, content }) });
+  if (!r.ok) return toast(`Falha ao salvar (HTTP ${r.status}).`);
+  state.disc = discipline; state.topic = topic;
+  await carregarArvore(); selecionar(discipline, topic);
+  toast(`"${topic}" salvo em ${discipline}.`);
+}
+
+/* ------------------------------------------------------------- análise */
+
+function voltarAoEditor() {
+  $("edit-wrap").hidden = false; $("review-wrap").hidden = true;
+  $("acao-editar").hidden = false; $("acao-revisao").hidden = true;
+}
+
+async function analisar() {
+  if (state.carregando) return;
+  if (!state.topic) return toast("Selecione um tópico primeiro.");
+  const texto = quill.getText().replace(/\n+$/, "");
+  if (!texto.trim()) return toast("Escreva alguma coisa antes de analisar.");
+
+  state.carregando = true;
+  const btn = $("btn-analisar");
+  btn.disabled = true; btn.textContent = "Analisando...";
+  $("painel").innerHTML = `<div class="loading"><i></i></div>
+    <div class="empty" style="margin-top:14px">Comparando seu texto com a teoria de
+    <b>${esc(state.topic)}</b>.<br>Modelos gratuitos podem demorar.</div>`;
+
+  try {
+    const r = await fetch("/check-knowledge", { method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ discipline: state.disc, topic: state.topic,
+                             user_text: texto, mode: state.modo }) });
+    const bruto = await r.text();
+    if (!r.ok) throw new Error(`HTTP ${r.status}\n${bruto.slice(0, 400)}`);
+    let d;
+    try { d = JSON.parse(bruto); }
+    catch { throw new Error("A resposta não era JSON válido:\n" + bruto.slice(0, 400)); }
+    if (!d || typeof d.coverage_percentage !== "number")
+      throw new Error("JSON sem os campos esperados:\n" + bruto.slice(0, 400));
+
+    state.texto = texto;
+    state.itens = d.detailed_analysis || [];
+    state.revisados.clear();
+    state.teoria = await textoDaTeoria(state.disc, state.topic);
+    const marcadas = renderRevisao(texto, state.itens);
+    renderPainel(d, marcadas);
+    $("edit-wrap").hidden = true; $("review-wrap").hidden = false;
+    $("acao-editar").hidden = true; $("acao-revisao").hidden = false;
+    $("counter").textContent = marcadas
+      ? `${marcadas} trecho${marcadas === 1 ? "" : "s"} marcado${marcadas === 1 ? "" : "s"}`
+      : "nenhum trecho localizado no texto";
+  } catch (e) {
+    $("painel").innerHTML = `<div class="err-box"><b>A análise falhou</b>${esc(e.message)}
+
+O agente está em modo verbose: o terminal do uvicorn mostra a resposta crua do modelo.</div>`;
+  } finally {
+    state.carregando = false; btn.disabled = false; btn.textContent = "Analisar";
+  }
+}
+
+/* Quando o modelo não devolve "reference", procura na teoria a linha que fala
+   do conceito. Um trecho aproximado ensina mais do que "Não mencionado". */
+function trechoDaTeoria(conceito) {
+  if (!state.teoria || !conceito) return "";
+  const linhas = state.teoria.split(/\n+/).map(l => l.trim()).filter(l => l.length > 15);
+  const alvo = normalizar(conceito).texto.trim();
+  if (!alvo) return "";
+  let achou = linhas.find(l => normalizar(l).texto.includes(alvo));
+  if (!achou) {
+    const palavras = alvo.split(" ").filter(p => p.length > 4).sort((a, b) => b.length - a.length);
+    for (const p of palavras) {
+      achou = linhas.find(l => normalizar(l).texto.includes(p));
+      if (achou) break;
+    }
+  }
+  return achou ? achou.slice(0, 500) : "";
+}
+
+/* Sem marcações há três causas diferentes, e culpar o modelo pelas três é
+   mentira: conceito "não lembrado" não tem trecho por definição. */
+function notaDeRodape(marcadas, itens, nadaBateu) {
+  if (marcadas)
+    return "Passe o mouse sobre um trecho marcado no texto para achar o conceito, e vice-versa. ";
+  if (nadaBateu)
+    return "Nada foi marcado no texto porque nenhum conceito da teoria apareceu nele. ";
+  const comCitacao = itens.filter(i => i._k !== "none" && (i.evidence || "").trim()).length;
+  if (comCitacao)
+    return "Nenhum trecho pôde ser ancorado: o modelo devolveu citações que não existem literalmente no seu texto. ";
+  return "O modelo não devolveu citações do seu texto, então não houve o que marcar. ";
+}
+
+function renderPainel(d, marcadas) {
+  const pct = Math.max(0, Math.min(100, Number(d.coverage_percentage) || 0));
+  const itens = state.itens, faltou = d.missing_concepts || [];
+  const conta = k => itens.filter(i => i._k === k).length;
+
+  // o que você já acertou não precisa da teoria ocupando espaço
+  itens.forEach(it => {
+    it._ref = it._k === "ok" ? ""
+      : (it.reference || "").trim() || trechoDaTeoria(it.concept);
+  });
+
+  // zero conceitos batendo quase sempre significa tópico errado selecionado,
+  // não desempenho ruim — vale avisar antes que a pessoa culpe o próprio estudo
+  const nadaBateu = itens.length > 0 && itens.every(i => i._k === "none");
+
+  // missing_concepts repete o que já está nos cards; só interessa o que o
+  // modelo citou como ausente mas esqueceu de detalhar
+  const vistos = new Set(itens.map(i => normalizar(i.concept || "").texto.trim()));
+  const orfaos = faltou.filter(m => !vistos.has(normalizar(m).texto.trim()));
+
+  $("painel").innerHTML = `
+    ${nadaBateu ? `<div class="aviso">Nenhum dos ${itens.length} conceito(s) da teoria de
+      <b>${esc(state.topic)}</b> apareceu no seu texto.<br>
+      Se não era esperado, confira se o tópico selecionado no menu à esquerda é o
+      mesmo sobre o qual você escreveu.</div>` : ""}
+    <div class="card score">
+      <div class="big"><b>${pct.toFixed(0)}</b><span>% de cobertura</span></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="tally">
+        <div><i class="dot ok"></i>Lembrados <b>${conta("ok")}</b></div>
+        <div><i class="dot warn"></i>Parciais <b>${conta("warn")}</b></div>
+        <div><i class="dot err"></i>Incorretos <b>${conta("err")}</b></div>
+        <div><i class="dot none"></i>Não lembrados <b>${conta("none")}</b></div>
+      </div>
+    </div>
+
+    <div class="label">Conceitos
+      <span><span class="progresso" id="progresso">${itens.length}</span>
+      <button class="linkbtn" id="btn-limpar" hidden onclick="limparRevisados()">limpar</button></span></div>
+    ${itens.map((it, idx) => `
+      <div class="detail ${it._k}${it._marcado ? " linked" : ""}" data-idx="${idx}">
+        <div class="top"><span class="tick"></span>
+          <span class="concept">${esc(it.concept)}</span>
+          <span class="chip ${it._k}">${ROTULO[it._k]}</span></div>
+        <div class="why">${esc(it.explanation)}</div>
+        ${it._marcado ? `<div class="quote"><span class="tag">você escreveu</span>“${esc((it.evidence || "").trim())}”</div>` : ""}
+        ${it._semTrecho ? `<div class="quote" style="font-style:normal">trecho não localizado no texto</div>` : ""}
+        ${it._ref ? `<div class="ref"><span class="tag">na teoria</span>${esc(it._ref)}</div>` : ""}
+      </div>`).join("")}
+
+    ${orfaos.length ? `<div class="block">
+      <div class="label">Citados como ausentes, sem análise</div>
+      <div class="chips">${orfaos.map(m => `<span class="miss-chip">${esc(m)}</span>`).join("")}</div>
+      <div style="font-size:11px;color:var(--dim);margin-top:6px">
+        O modelo listou estes como faltando, mas não gerou um card para eles.</div>
+    </div>` : ""}
+
+    <div class="block" style="font-size:11.5px;color:var(--dim);line-height:1.55">
+      ${notaDeRodape(marcadas, itens, nadaBateu)}
+      Clique num conceito para marcá-lo como revisado.
+    </div>`;
+  atualizarProgresso();
+}
+
+/* ------------------------------------------------------- revisão manual */
+
+function alternarRevisado(idx) {
+  const jaEstava = state.revisados.has(idx);
+  jaEstava ? state.revisados.delete(idx) : state.revisados.add(idx);
+  // pega o card e a marcação no texto de uma vez: ambos carregam o mesmo data-idx
+  document.querySelectorAll('[data-idx="' + idx + '"]')
+    .forEach(el => el.classList.toggle("done", !jaEstava));
+  atualizarProgresso();
+}
+
+function limparRevisados() {
+  state.revisados.clear();
+  document.querySelectorAll(".done").forEach(el => el.classList.remove("done"));
+  atualizarProgresso();
+}
+
+function atualizarProgresso() {
+  const el = $("progresso");
+  if (!el) return;
+  const total = state.itens.length, n = state.revisados.size;
+  el.textContent = n ? `${n}/${total} revisados` : total;
+  el.classList.toggle("tudo", n > 0 && n === total);
+  const limpar = $("btn-limpar");
+  if (limpar) limpar.hidden = n === 0;
+}
+
+function vazio() {
+  // no modo "com dicas" o painel direito é o roteiro, não um espaço em branco
+  if (state.modo === "dicas") return state.roteiro ? renderRoteiro() : carregarRoteiro();
+  $("painel").innerHTML = `<div class="empty">Nenhuma análise ainda.<br>Escreva seu resumo e clique em Analisar.</div>`;
+}
+
+/* ------------------------------------------------------ modos de escrita */
+
+/* Livre: nenhuma pista, o texto sai só da memória.
+   Com dicas: o painel direito vira um checklist dos termos que a teoria cobre,
+   para marcar conforme escreve. As dicas trazem só o NOME do termo — a
+   definição continua sendo trabalho de quem está estudando. */
+
+const NOTA_MODO = {
+  livre: "Nenhuma pista: escreva tudo que lembrar do tópico.",
+  dicas: "O painel da direita lista os termos a cobrir. Marque conforme escreve.",
+};
+
+function trocarModo(m, guardar = true) {
+  state.modo = m === "dicas" ? "dicas" : "livre";
+  document.querySelectorAll(".modo").forEach(b =>
+    b.classList.toggle("active", b.dataset.modo === state.modo));
+  $("modo-nota").textContent = NOTA_MODO[state.modo];
+  if (guardar) { try { localStorage.setItem("ar-modo", state.modo); } catch (e) {} }
+  // trocar de modo durante a revisão não pode apagar o resultado da análise
+  if ($("review-wrap").hidden) {
+    if (state.modo === "dicas") carregarRoteiro(); else vazio();
+  }
+}
+
+async function carregarRoteiro() {
+  if (!state.topic) return vazioSemTopico();
+  state.roteiro = null;
+  $("painel").innerHTML = `<div class="loading"><i></i></div>`;
+  try {
+    const r = await fetch(`/outline?discipline=${encodeURIComponent(state.disc)}`
+                        + `&topic=${encodeURIComponent(state.topic)}`);
+    state.roteiro = r.ok ? await r.json() : null;
+  } catch (e) { state.roteiro = null; }
+  renderRoteiro();
+}
+
+function vazioSemTopico() {
+  $("painel").innerHTML = `<div class="empty">Selecione um tópico para ver o roteiro.</div>`;
+}
+
+async function gerarRoteiro() {
+  if (!state.topic || state.carregando) return;
+  // regerar troca a lista inteira, então as marcas feitas até aqui não valem mais
+  if (state.marcados.size && !confirm(
+      `Montar o roteiro de novo?\n\nIsso usa o modelo mais uma vez e desmarca os `
+      + `${state.marcados.size} termo(s) que você já marcou.`)) return;
+  state.carregando = true;
+  $("painel").innerHTML = `<div class="loading"><i></i></div>
+    <div class="empty" style="margin-top:14px">Lendo a teoria de <b>${esc(state.topic)}</b>
+    para montar o roteiro.<br>Isso usa o modelo uma vez; depois fica salvo.</div>`;
+  try {
+    const r = await fetch(`/outline?discipline=${encodeURIComponent(state.disc)}`
+                        + `&topic=${encodeURIComponent(state.topic)}`, { method:"POST" });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+    state.roteiro = d;
+    state.marcados.clear();
+    renderRoteiro();
+    toast("roteiro pronto");
+  } catch (e) {
+    $("painel").innerHTML = `<div class="err-box"><b>Não deu para montar o roteiro</b>${esc(e.message)}</div>
+      <div style="margin-top:12px"><button class="btn btn-outline" onclick="gerarRoteiro()">Tentar de novo</button></div>`;
+  } finally { state.carregando = false; }
+}
+
+function renderRoteiro() {
+  if (!state.topic) return vazioSemTopico();
+  const r = state.roteiro;
+
+  if (!r || !r.blocks) {
+    $("painel").innerHTML = `<div class="empty">Este tópico ainda não tem roteiro.<br>
+      Ele sai da própria teoria, com uma chamada ao modelo.</div>
+      <div style="margin-top:14px"><button class="btn btn-primary" onclick="gerarRoteiro()">Gerar dicas</button></div>`;
+    return;
+  }
+
+  const termos = r.blocks.flatMap(b => b.terms);
+  const feitos = termos.filter(t => state.marcados.has(t)).length;
+
+  // um roteiro em que quase nenhum termo aparece na teoria é sinal de que o
+  // modelo traduziu em vez de copiar — o caso clássico é sair tudo em inglês
+  const traduziu = (r.off || 0) > termos.length / 2;
+
+  const aviso = r.stale
+    ? `<div class="rt-aviso">A teoria mudou depois que este roteiro foi gerado,
+       então ele pode estar incompleto.</div>`
+    : traduziu
+    ? `<div class="rt-aviso">${r.off} dos ${termos.length} termos não aparecem assim
+       na teoria — o modelo provavelmente traduziu em vez de copiar. Vale regerar.</div>`
+    : "";
+
+  $("painel").innerHTML = `<div class="roteiro">
+    <div class="rt-topo"><b>Roteiro</b>
+      <span class="rt-prog">${feitos}/${termos.length} marcados</span>
+      <button class="hbtn" onclick="gerarRoteiro()"
+        title="Monta o roteiro de novo, com uma nova chamada ao modelo">regerar</button></div>
+    ${aviso}
+    ${r.blocks.map(b => `<div class="rt-bloco">
+        <div class="t">${esc(b.title)}</div>
+        <div class="rt-lista">${b.terms.map(t => {
+          const on = state.marcados.has(t);
+          return `<span class="termo${on ? " feito" : ""}" data-termo="${esc(t)}">
+            <span class="bx">✓</span><span class="nm">${esc(t)}</span></span>`;
+        }).join("")}</div>
+      </div>`).join("")}
+    <div style="font-size:11.5px;color:var(--dim);line-height:1.55">As dicas dizem o que
+      citar, não o que é. A análise continua comparando seu texto com a teoria inteira.</div>
+  </div>`;
+}
+
+$("painel").addEventListener("click", e => {
+  const t = e.target.closest("[data-termo]");
+  if (!t) return;
+  const nome = t.dataset.termo;
+  state.marcados.has(nome) ? state.marcados.delete(nome) : state.marcados.add(nome);
+  renderRoteiro();
+});
+
+document.querySelectorAll(".modo").forEach(b =>
+  b.addEventListener("click", () => trocarModo(b.dataset.modo)));
+
+$("review").addEventListener("mouseover", e => {
+  const m = e.target.closest(".mk"); if (m) focar(m.dataset.idx, true);
+});
+$("review").addEventListener("mouseout", e => {
+  const m = e.target.closest(".mk"); if (m) focar(m.dataset.idx, false);
+});
+$("side").addEventListener("click", e => {
+  if (e.target.closest(".linkbtn")) return;          // "limpar" tem handler próprio
+  const c = e.target.closest(".detail");
+  if (c && c.dataset.idx) alternarRevisado(c.dataset.idx);
+});
+$("side").addEventListener("mouseover", e => {
+  const c = e.target.closest(".detail"); if (c && c.dataset.idx) focar(c.dataset.idx, true);
+});
+$("side").addEventListener("mouseout", e => {
+  const c = e.target.closest(".detail"); if (c && c.dataset.idx) focar(c.dataset.idx, false);
+});
+
+/* --------------------------------------------------------- estatísticas */
+
+async function carregarStats() {
+  $("stats").innerHTML = `<div class="empty">Carregando...</div>`;
+  const d = await (await fetch("/stats")).json();
+  const discs = d.disciplines || [];
+  if (!discs.length) { $("stats").innerHTML = `<div class="empty">Nenhuma disciplina cadastrada ainda.</div>`; return; }
+
+  $("stats").innerHTML = `<table class="stats"><thead><tr>
+      <th>Disciplina / tópico</th><th>Última vez</th><th>Tentativas</th>
+      <th>Média</th><th>Evolução</th>
+    </tr></thead><tbody>
+    ${discs.map(d => linhaDisciplina(d) + d.topics.map(t => linhaTopico(d.name, t)).join("")).join("")}
+    </tbody></table>
+    <div class="legenda">
+      <span><i class="dot ok"></i>praticado nos últimos 7 dias</span>
+      <span><i class="dot warn"></i>1 a 2 semanas parado</span>
+      <span><i class="dot err"></i>mais de 2 semanas parado</span>
+    </div>`;
+}
+
+const pc = v => v == null ? "—" : v.toFixed(0) + "%";
+
+/* Há quanto tempo o tópico não é praticado. Compara DATAS de calendário, não
+   períodos de 24h: praticado ontem à noite deve dizer "ontem", não "hoje". */
+function diasDesde(iso) {
+  const d = new Date(iso);
+  if (!iso || isNaN(d)) return null;
+  const zero = x => { const c = new Date(x); c.setHours(0, 0, 0, 0); return c; };
+  return Math.round((zero(new Date()) - zero(d)) / 86400000);
+}
+
+function quando(iso) {
+  if (!iso) return `<span style="color:var(--dim)">nunca</span>`;
+  const dias = diasDesde(iso);
+  if (dias === null) return `<span style="color:var(--dim)">—</span>`;
+  const d = new Date(iso);
+  const txt = dias <= 0 ? "hoje" : dias === 1 ? "ontem" : `há ${dias} dias`;
+  const cls = dias >= 14 ? "atraso-err" : dias >= 7 ? "atraso-warn" : "atraso-ok";
+  return `<span class="${cls}" title="${esc(d.toLocaleString("pt-BR"))}">${txt}</span>`;
+}
+
+function linhaDisciplina(d) {
+  const fechada = state.fechadas.has(d.name);
+  // a data da disciplina é a do tópico mais recente, então ela pode parecer
+  // em dia enquanto outros tópicos apodrecem; este contador denuncia isso
+  const parados = d.topics.filter(t => {
+    const n = diasDesde(t.last_at);
+    return n !== null && n >= 7;
+  }).length;
+  // o selo acompanha a única coluna de percentual que sobrou: a média
+  const badge = d.avg == null ? `<span class="badge none">sem dados</span>`
+    : `<span class="badge ${faixa(d.avg)}">${d.avg.toFixed(0)}%</span>`;
+  return `<tr class="d-row${fechada ? " closed" : ""}" data-disc="${esc(d.name)}">
+    <td><span class="caret">▼</span><b>${esc(d.name)}</b>
+      <span class="meta">${d.practiced}/${d.topics.length} praticados${parados
+        ? ` · <span class="atraso-warn">${parados} parado${parados > 1 ? "s" : ""}</span>` : ""}</span></td>
+    <td>${quando(d.last_at)}</td>
+    <td>${d.attempts}</td>
+    <td>${badge}</td>
+    <td>${d.attempts ? `<button class="hbtn" data-hd="${esc(d.name)}">histórico</button>` : ""}</td></tr>`;
+}
+
+function linhaTopico(disc, t) {
+  const oculta = state.fechadas.has(disc) ? " hide" : "";
+  const link = `<button class="tlink" data-d="${esc(disc)}" data-t="${esc(t.name)}">${esc(t.name)}</button>`;
+  if (!t.attempts)
+    return `<tr class="t-row never${oculta}" data-de="${esc(disc)}"><td>${link}</td>
+      <td>${quando(null)}</td><td>0</td><td>—</td><td>nunca praticado</td></tr>`;
+
+  // a variação é entre a primeira e a última tentativa; sem as colunas
+  // "Primeira" e "Última" ela vive junto do sparkline, que é sobre o mesmo
+  const delta = t.last - t.first;
+  const seta = t.attempts > 1 && Math.abs(delta) >= 0.5
+    ? `<span class="delta ${delta > 0 ? "up" : "down"}"
+         title="${t.first.toFixed(0)}% na primeira tentativa, ${t.last.toFixed(0)}% na última"
+       >${delta > 0 ? "▲" : "▼"}${Math.abs(delta).toFixed(0)}</span>` : "";
+  const spark = t.trend.map(v => `<i class="${faixa(v)}" style="height:${Math.max(10, v)}%" title="${v}%"></i>`).join("");
+  return `<tr class="t-row${oculta}" data-de="${esc(disc)}"><td>${link}</td>
+    <td>${quando(t.last_at)}</td><td>${t.attempts}</td>
+    <td><b>${pc(t.avg)}</b></td>
+    <td><span class="spark">${spark}</span>${seta}
+      <button class="hbtn" data-hd="${esc(disc)}" data-ht="${esc(t.name)}">histórico</button></td></tr>`;
+}
+
+/* ---------------------------------------------------------------- modal */
+
+const ST_ROTULO = { ok:"lembrado", partial:"parcial", incorrect:"incorreto", missing:"não lembrado" };
+
+async function abrirHistorico(disc, topic) {
+  const q = `?discipline=${encodeURIComponent(disc)}` + (topic ? `&topic=${encodeURIComponent(topic)}` : "");
+  const r = await fetch("/history" + q);
+  if (!r.ok) return toast(`Falha ao carregar histórico (HTTP ${r.status}).`);
+  renderModal(await r.json());
+}
+
+function renderModal(h) {
+  const escopo = h.topic ? `${h.discipline} / ${h.topic}` : h.discipline;
+  const conceitos = h.concepts || [], tentativas = h.attempts || [];
+  const semDetalhe = tentativas.filter(a => !a.detailed).length;
+
+  const linhas = conceitos.map(c => `
+    <tr class="${c.missed ? "" : "limpo"}">
+      <td><span class="conc-nome">${esc(c.name)}</span>
+        ${!h.topic ? `<span class="meta"> · ${esc(c.topic || "")}</span>` : ""}
+        ${c.missed && c.note ? `<div class="conc-nota">${esc(c.note)}</div>` : ""}</td>
+      <td>${c.missed}/${c.seen}</td>
+      <td><b>${c.rate}%</b></td>
+      <td><span class="chip ${MAPA[c.last_status]}">${ST_ROTULO[c.last_status]}</span></td>
+      <td><span class="seq">${c.history.map(x =>
+        `<i class="${x.status}" title="${esc((x.at || "").replace("T", " "))} — ${ST_ROTULO[x.status]}"></i>`).join("")}</span></td>
+    </tr>`).join("");
+
+  $("modal").innerHTML = `
+    <div class="overlay" data-fechar="1"><div class="modal">
+      <header>
+        <h2>Histórico</h2>
+        <span class="meta">${esc(escopo)} · ${tentativas.length} tentativa(s)</span>
+        <span class="spacer"></span>
+        <button class="icon-btn" data-fechar="1" title="Fechar">✕</button>
+      </header>
+      <div class="corpo">
+        ${conceitos.length ? `
+          <div class="label">Pontos mais errados <span>${conceitos.filter(c => c.missed).length} de ${conceitos.length}</span></div>
+          <table><thead><tr>
+            <th>Conceito</th><th>Erros</th><th>Taxa</th><th>Último</th><th>Ao longo do tempo</th>
+          </tr></thead><tbody>${linhas}</tbody></table>
+          <div class="legenda">
+            <span><i class="dot ok"></i>lembrado</span><span><i class="dot warn"></i>parcial</span>
+            <span><i class="dot err"></i>incorreto</span><span><i class="dot none"></i>não lembrado</span>
+            <span>· cada quadrado é uma tentativa, da mais antiga à mais recente</span>
+          </div>` : `<div class="empty">Nenhuma tentativa com detalhe por conceito ainda.<br>
+            Só as análises feitas a partir de agora guardam esse nível de detalhe.</div>`}
+
+        ${semDetalhe ? `<div class="block" style="font-size:11.5px;color:var(--dim)">
+          ${semDetalhe} tentativa(s) antiga(s) não têm detalhe por conceito e entram só na linha do tempo abaixo.
+        </div>` : ""}
+
+        <div class="block"><div class="label">Tentativas</div>
+          <table><thead><tr>
+            <th>Quando</th>${h.topic ? "" : "<th>Tópico</th>"}<th>Cobertura</th>
+            <th>Lembrados</th><th>Parciais</th><th>Incorretos</th><th>Não lembrados</th>
+          </tr></thead><tbody>
+          ${tentativas.slice().reverse().map(a => `<tr>
+            <td>${esc((a.at || "").replace("T", " ").slice(0, 16))}
+              ${a.mode === "dicas" ? `<span class="modo-tag" title="Feita com o roteiro de dicas à vista">com dicas</span>` : ""}</td>
+            ${h.topic ? "" : `<td>${esc(a.topic || "")}</td>`}
+            <td><b>${a.coverage == null ? "—" : a.coverage.toFixed(0) + "%"}</b></td>
+            <td>${a.remembered ?? 0}</td><td>${a.partially_remembered ?? 0}</td>
+            <td>${a.incorrect ?? 0}</td><td>${a.not_remembered ?? 0}</td></tr>`).join("")}
+          </tbody></table></div>
+      </div>
+    </div></div>`;
+}
+
+const MAPA = { ok:"ok", partial:"warn", incorrect:"err", missing:"none" };
+
+function fecharModal() { $("modal").innerHTML = ""; }
+
+$("modal").addEventListener("click", e => { if (e.target.closest("[data-fechar]")) fecharModal(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") fecharModal(); });
+
+$("stats").addEventListener("click", e => {
+  // antes do toggle da disciplina: o botão fica dentro da linha dela
+  const hb = e.target.closest(".hbtn");
+  if (hb) { abrirHistorico(hb.dataset.hd, hb.dataset.ht || null); return; }
+  const b = e.target.closest(".tlink");
+  if (b) { selecionar(b.dataset.d, b.dataset.t); trocarAba("pane-recall"); return; }
+  const linha = e.target.closest(".d-row");
+  if (!linha) return;
+  const nome = linha.dataset.disc;
+  const fechando = !linha.classList.contains("closed");
+  linha.classList.toggle("closed", fechando);
+  fechando ? state.fechadas.add(nome) : state.fechadas.delete(nome);
+  document.querySelectorAll(`.t-row[data-de="${CSS.escape(nome)}"]`)
+    .forEach(tr => tr.classList.toggle("hide", fechando));
+});
+
+/* ------------------------------------------------------------------ UI */
+
+const SUB = {
+  "pane-recall": "Escreva de memória o que você lembra e compare com a teoria.",
+  "pane-theory": "O material de referência que serve de gabarito para a análise.",
+  "pane-stats":  "Seu desempenho por disciplina e por tópico, ao longo das tentativas."
+};
+const abaAtiva = () => (document.querySelector(".pane.active") || {}).id || "pane-recall";
+
+function cabecalho(id) {
+  $("head-title").textContent = id === "pane-stats" ? "Estatísticas"
+    : (state.topic || "Nenhum tópico selecionado");
+  $("head-sub").textContent = SUB[id];
+}
+
+function trocarAba(id) {
+  document.querySelectorAll(".pane").forEach(p => p.classList.toggle("active", p.id === id));
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.pane === id));
+  document.body.classList.toggle("no-side", id !== "pane-recall");
+  cabecalho(id);
+  if (id === "pane-theory" && state.topic && $("f-topic").value !== state.topic) carregarTeoria();
+  if (id === "pane-stats") carregarStats();
+}
+
+function contarTeoria() {
+  $("theory-counter").textContent = $("f-content").value.length.toLocaleString("pt-BR") + " caracteres";
+}
+
+/* ------------------------------------- ferramentas do editor de teoria */
+
+/* Usa execCommand em vez de mexer no .value: é a única forma de manter o
+   Ctrl+Z nativo do textarea funcionando. Cai no .value se não houver suporte. */
+function substituir(ta, texto) {
+  if (!document.execCommand("insertText", false, texto)) {
+    const i = ta.selectionStart, f = ta.selectionEnd;
+    ta.value = ta.value.slice(0, i) + texto + ta.value.slice(f);
+    ta.selectionStart = ta.selectionEnd = i + texto.length;
+  }
+  contarTeoria();
+}
+
+function inserir(txt) {
+  const ta = $("f-content");
+  ta.focus();
+  substituir(ta, txt);
+}
+
+/* Aplica a função a cada linha tocada pela seleção (ou à linha do cursor). */
+function porLinha(fn) {
+  const ta = $("f-content");
+  ta.focus();
+  const v = ta.value;
+  const ini = v.lastIndexOf("\n", ta.selectionStart - 1) + 1;
+  let fim = v.indexOf("\n", ta.selectionEnd);
+  if (fim === -1) fim = v.length;
+  const novo = v.slice(ini, fim).split("\n").map(fn).join("\n");
+  ta.setSelectionRange(ini, fim);
+  substituir(ta, novo);
+  ta.setSelectionRange(ini, ini + novo.length);
+}
+
+const RE_MARCA = /^(\s*)(?:#{1,6}\s+|[-•*]\s+|\d+[.)]\s+)/;
+
+function alternar(re, prefixo) {
+  porLinha(l => {
+    if (!l.trim()) return l;
+    if (re.test(l)) return l.replace(re, "$1");
+    return l.replace(/^(\s*)/, "$1" + prefixo);
+  });
+}
+
+const FERRAMENTAS = {
+  titulo:  () => alternar(/^(\s*)#{1,6}\s+/, "## "),
+  bullet:  () => alternar(/^(\s*)[-•*]\s+/, "- "),
+  numero:  () => { let n = 0; porLinha(l => l.trim()
+                     ? `${++n}. ${l.replace(RE_MARCA, "")}` : l); },
+  recuar:  () => porLinha(l => l.trim() ? "  " + l : l),
+  limpar:  () => porLinha(l => l.replace(RE_MARCA, "$1")),
+  seta:    () => inserir(" → "),
+  hifen:   () => inserir(" – "),
+  regra:   () => inserir("\n────────────────────────\n"),
+};
+
+document.querySelector(".tt-bar").addEventListener("click", e => {
+  const b = e.target.closest(".tt");
+  if (b && FERRAMENTAS[b.dataset.tt]) FERRAMENTAS[b.dataset.tt]();
+});
+
+/* ------------------------------------------- imagens coladas na teoria */
+
+/* O textarea guarda texto e nada mais, então o Ctrl+V de um print é
+   interceptado: o arquivo sobe para o disco e o texto recebe só o marcador
+   "[imagem: x.png]". O backend tira esse marcador antes de mandar a teoria
+   para o modelo — a imagem nunca entra no prompt. */
+
+const TIPOS_IMG = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+function qsImg(nome) {
+  const q = `?discipline=${encodeURIComponent($("f-disc").value.trim())}`
+          + `&topic=${encodeURIComponent($("f-topic").value.trim())}`;
+  return nome ? q + `&name=${encodeURIComponent(nome)}` : q;
+}
+
+async function enviarImagem(file) {
+  if (!$("f-disc").value.trim() || !$("f-topic").value.trim())
+    return toast("Preencha disciplina e tópico antes de colar uma imagem.");
+  toast("enviando imagem...");
+  try {
+    const r = await fetch("/image" + qsImg(), {
+      method: "POST", headers: { "Content-Type": file.type }, body: file });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return toast(d.detail || `Falha ao enviar (HTTP ${r.status}).`);
+    inserir(`\n[imagem: ${d.name}]\n`);
+    await carregarImagens();
+    toast(d.existed ? "essa imagem já estava aqui" : "imagem salva — lembre de salvar a teoria");
+  } catch (e) { toast("Falha ao enviar a imagem."); }
+}
+
+async function carregarImagens() {
+  const alvo = $("f-imgs");
+  if (!$("f-disc").value.trim() || !$("f-topic").value.trim()) return alvo.innerHTML = "";
+  let imgs = [];
+  try {
+    const r = await fetch("/images" + qsImg());
+    if (r.ok) imgs = (await r.json()).images || [];
+  } catch (e) { /* sem imagens é um estado válido, não vale um erro na tela */ }
+  alvo.innerHTML = imgs.map(n => `<div class="thumb" data-ver="${esc(n)}" title="${esc(n)}">
+      <img src="/image${esc(qsImg(n))}" alt="" loading="lazy">
+      <button class="x" data-del="${esc(n)}" title="Remover">×</button>
+    </div>`).join("");
+}
+
+/* Some com o marcador junto com o arquivo: deixar um "[imagem: x.png]"
+   apontando para nada só confunde na hora de reler a teoria. */
+function removerMarcador(nome) {
+  const ta = $("f-content");
+  const escapado = nome.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const novo = ta.value.replace(
+    new RegExp(`\\n?[ \\t]*\\[imagem:\\s*${escapado}\\s*\\][ \\t]*`, "g"), "");
+  if (novo === ta.value) return;
+  ta.focus(); ta.select();
+  substituir(ta, novo);
+}
+
+$("f-imgs").addEventListener("click", async e => {
+  const del = e.target.closest("[data-del]");
+  if (del) {
+    const n = del.dataset.del;
+    if (!confirm("Remover esta imagem?\n\nO marcador dela sai do texto junto.")) return;
+    const r = await fetch("/image" + qsImg(n), { method: "DELETE" });
+    if (!r.ok) return toast(`Falha ao remover (HTTP ${r.status}).`);
+    removerMarcador(n);
+    await carregarImagens();
+    toast("imagem removida — lembre de salvar a teoria");
+    return;
+  }
+  const ver = e.target.closest("[data-ver]");
+  if (ver) $("modal").innerHTML = `
+    <div class="overlay" data-fechar="1"><div class="modal">
+      <header><h2>Imagem</h2><span class="meta">${esc(ver.dataset.ver)}</span></header>
+      <div class="corpo lightbox"><img src="/image${esc(qsImg(ver.dataset.ver))}" alt=""></div>
+    </div></div>`;
+});
+
+$("f-content").addEventListener("paste", e => {
+  const it = [...(e.clipboardData?.items || [])]
+    .find(i => i.kind === "file" && TIPOS_IMG.includes(i.type));
+  if (!it) return;                    // texto colado segue o caminho nativo
+  e.preventDefault();
+  enviarImagem(it.getAsFile());
+});
+
+$("f-content").addEventListener("dragover", e => {
+  if ([...(e.dataTransfer?.items || [])].some(i => i.kind === "file")) e.preventDefault();
+});
+
+$("f-content").addEventListener("drop", e => {
+  const f = [...(e.dataTransfer?.files || [])].find(f => TIPOS_IMG.includes(f.type));
+  if (!f) return;
+  e.preventDefault();
+  enviarImagem(f);
+});
+
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => trocarAba(t.dataset.pane)));
+$("f-content").addEventListener("input", contarTeoria);
+/* as imagens estão presas ao par disciplina+tópico; renomear qualquer um dos
+   dois muda a pasta, então a tira é recarregada para mostrar o que existe lá */
+$("f-disc").addEventListener("change", carregarImagens);
+$("f-topic").addEventListener("change", carregarImagens);
+
+quill.on("text-change", () => {
+  if (!$("review-wrap").hidden) return;
+  const t = quill.getText().trim();
+  const p = t ? t.split(/\s+/).length : 0;
+  $("counter").textContent = `${p.toLocaleString("pt-BR")} palavra${p === 1 ? "" : "s"}`;
+});
+
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); analisar(); }
+});
+
+(function () {
+  let m = null;
+  try { m = localStorage.getItem("ar-modo"); } catch (e) {}
+  trocarModo(m || "livre", false);   // já chama vazio() / carregarRoteiro()
+})();
+carregarArvore();
 </script>
 </body>
 </html>
