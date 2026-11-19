@@ -2,6 +2,7 @@
 
 import re
 
+from app import storage
 from app.crew.outline_crew import TopicOutlineCrew
 from app.services.resposta import extrair_json
 
@@ -38,7 +39,9 @@ def _limpar(blocos) -> list[dict]:
 
 def run_outline(domain, theory_text):
     crew = TopicOutlineCrew(domain_role=domain).outline_crew()
-    dados = extrair_json(crew.kickoff(inputs={"theory_text": theory_text}))
+    # Última parada antes do modelo: a limpeza é refeita aqui, mesmo que quem
+    # chamou já tenha feito, para imagem nenhuma sair por este caminho.
+    dados = extrair_json(crew.kickoff(inputs={"theory_text": storage.para_modelo(theory_text)}))
 
     blocos = _limpar(dados.get("blocks") if isinstance(dados, dict) else None)
     if not blocos:

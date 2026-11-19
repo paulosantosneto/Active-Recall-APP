@@ -5,31 +5,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Active Recall</title>
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" rel="stylesheet">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+/* Layout ancorado: lateral, cabeçalho, editor, rodapé e painel são áreas fixas
+   separadas por linhas, como num editor de código. Nada flutua. Cor só para
+   estado (ok/parcial/erro). */
 :root {
-  --bg:#0a0a0b; --panel:#0f0f11; --raised:#141417;
-  --border:#232327; --border-soft:#1a1a1d;
-  --text:#ededf0; --muted:#8b8b93; --dim:#5f5f68;
-  --accent:#7c9cff; --on-accent:#0a0a0b;
+  --bg:#0b0b0c; --panel:#111113; --raised:#1b1b1e;
+  --border:#29292d; --border-soft:#1e1e21;
+  --text:#ececef; --muted:#8f8f97; --dim:#62626a;
+  --accent:#ececef; --on-accent:#0b0b0c;
   --ok:#3fb950; --warn:#d29922; --err:#f85149; --none:#6e7681;
   --ok-bg:rgba(63,185,80,.10); --warn-bg:rgba(210,153,34,.10);
   --err-bg:rgba(248,81,73,.10); --none-bg:rgba(110,118,129,.10);
   --mk-warn:rgba(210,153,34,.22); --mk-err:rgba(248,81,73,.22); --mk-ok:rgba(63,185,80,.13);
-  --shadow:none; --radius:10px;
+  --lig:rgba(88,166,255,.22); --lig-linha:#58a6ff;
+  --radius:8px; --strip:48px; --pad:16px; --texto:28px;
+  color-scheme:dark;
 }
 :root[data-theme="light"] {
-  --bg:#fbfbfc; --panel:#ffffff; --raised:#f4f4f6;
-  --border:#e3e3e8; --border-soft:#eeeef1;
-  --text:#18181b; --muted:#63636d; --dim:#9a9aa4;
-  --accent:#4f6ef0; --on-accent:#ffffff;
+  color-scheme:light;
+  --bg:#ffffff; --panel:#f7f7f8; --raised:#ececef;
+  --border:#dcdce1; --border-soft:#e9e9ed;
+  --text:#18181b; --muted:#62626c; --dim:#96969f;
+  --accent:#18181b; --on-accent:#ffffff;
   --ok:#1a7f37; --warn:#9a6700; --err:#cf222e; --none:#6e7781;
   --ok-bg:rgba(26,127,55,.08); --warn-bg:rgba(154,103,0,.08);
   --err-bg:rgba(207,34,46,.08); --none-bg:rgba(110,119,129,.08);
   --mk-warn:rgba(212,167,44,.34); --mk-err:rgba(255,129,130,.34); --mk-ok:rgba(74,194,107,.22);
-  --shadow:0 1px 2px rgba(0,0,0,.04);
+  --lig:rgba(9,105,218,.14); --lig-linha:#0969da;
 }
 
 * { box-sizing:border-box; }
@@ -42,56 +49,80 @@ body {
 ::-webkit-scrollbar { width:9px; height:9px; }
 ::-webkit-scrollbar-track { background:transparent; }
 ::-webkit-scrollbar-thumb { background:var(--border); border-radius:6px; }
+button:focus-visible, .termo:focus-visible { outline:1.5px solid var(--muted); outline-offset:1px; }
+[hidden] { display:none !important; }   /* vence o display das classes abaixo */
 
-.topbar {
-  height:53px; border-bottom:1px solid var(--border); display:flex; align-items:center;
-  gap:14px; padding:0 18px; position:sticky; top:0; background:var(--bg); z-index:20;
-}
-.brand { display:flex; align-items:center; gap:9px; font-weight:600; letter-spacing:-.01em; }
-.brand .mark { width:22px; height:22px; border-radius:6px; background:linear-gradient(140deg,var(--accent),#5f7ae0);
-  display:grid; place-items:center; font-size:10px; font-weight:600; color:var(--on-accent); }
+/* ---------------------------------------------------------------- layout */
+.shell { display:grid; grid-template-columns:232px minmax(0,1fr) 420px;
+  grid-template-rows:minmax(0,1fr); height:100%; }
+body.no-side .shell { grid-template-columns:232px minmax(0,1fr); }
+body.no-side .side { display:none; }
+.rail { display:flex; flex-direction:column; min-height:0; background:var(--panel);
+  border-right:1px solid var(--border); }
+.rail-body { flex:1; min-height:0; overflow-y:auto; padding:12px 8px; }
+.rail-foot { padding:10px; border-top:1px solid var(--border); display:flex; gap:8px; }
+.rail-foot .imp { width:34px; flex:none; padding:7px 0; }
+/* busca: faixa própria no topo da lateral; com texto nela, os resultados
+   tomam o lugar da árvore */
+.rail-busca { flex:none; height:40px; display:flex; align-items:center; padding:0 var(--pad);
+  border-bottom:1px solid var(--border); }
+.rail-busca input { font-size:12.5px; }
+.achado { margin-bottom:8px; }
+.achado-d { font-size:10.5px; color:var(--dim); padding:0 8px; letter-spacing:.03em; text-transform:uppercase;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.achado .topic { display:flex; gap:6px; color:var(--text); font-weight:500; }
+.achado .topic .nome { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.achado .topic .n { flex:none; font-size:11px; color:var(--dim); font-weight:400; font-variant-numeric:tabular-nums; }
+.trecho { display:block; width:100%; text-align:left; border:none; background:none; cursor:pointer;
+  font:inherit; font-size:11.5px; line-height:1.45; color:var(--muted); padding:4px 8px 4px 10px;
+  margin-left:8px; width:calc(100% - 8px); border-left:1px solid var(--border); overflow-wrap:anywhere; }
+.trecho:hover { background:var(--raised); color:var(--text); }
+.trecho mark { background:var(--mk-warn); color:var(--text); border-radius:2px; }
+/* fila de revisão: os tópicos que a revisão espaçada marcou para hoje */
+#fila:not(:empty) { margin-bottom:14px; }
+.topic.fila-item { display:flex; align-items:center; gap:6px; }
+.fila-item .nome { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.fila-item .badge { flex:none; font-size:11px; }
+.fila-nada { font-size:12px; color:var(--dim); padding:0 8px; }
+.main { display:flex; flex-direction:column; min-width:0; min-height:0; }
+.side { min-height:0; overflow-y:auto; background:var(--panel); border-left:1px solid var(--border); }
+#painel { padding:var(--pad) var(--pad) 40px; }
+
+/* a faixa: cabeçalho de cada área, sempre da mesma altura */
+.strip { height:var(--strip); flex:none; display:flex; align-items:center; gap:12px;
+  padding:0 var(--pad); background:var(--panel); border-bottom:1px solid var(--border); }
+.brand { font-weight:600; font-size:13.5px; letter-spacing:-.01em; }
 .spacer { flex:1; }
-.icon-btn { width:30px; height:30px; border-radius:7px; border:1px solid var(--border);
+.icon-btn { width:28px; height:28px; border-radius:6px; border:none; flex:none;
   background:transparent; color:var(--muted); cursor:pointer; display:grid; place-items:center; }
 .icon-btn:hover { background:var(--raised); color:var(--text); }
-.crumb { font-size:12px; color:var(--dim); }
-.crumb b { color:var(--muted); font-weight:500; }
 
-.shell { display:grid; grid-template-columns:228px minmax(0,1fr) 525px; min-height:calc(100vh - 53px); align-items:start; }
-body.no-side .shell { grid-template-columns:228px minmax(0,1fr); }
-body.no-side .side { display:none; }
-.rail { border-right:1px solid var(--border); padding:16px 12px 30px; position:sticky; top:53px; align-self:stretch; }
-.main { padding:24px 28px 70px; min-width:0; }
-.side {
-  border-left:1px solid var(--border); position:sticky; top:53px;
-  height:calc(100vh - 53px); overflow-y:auto; padding:20px 16px 40px;
-}
-
-.label { font-size:11px; font-weight:500; letter-spacing:.08em; text-transform:uppercase;
-  color:var(--dim); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; }
+.label { font-size:12px; font-weight:500; color:var(--dim); margin-bottom:8px;
+  display:flex; justify-content:space-between; align-items:center; }
+.rail .label { padding:0 8px; }
 
 /* ------------------------------------------------------------------ tree */
 .disc { margin-bottom:2px; }
 .disc-head { display:flex; align-items:center; gap:6px; width:100%; padding:6px 8px; border:none;
-  background:transparent; border-radius:7px; color:var(--text); font:inherit; font-size:13px;
+  background:transparent; border-radius:6px; color:var(--text); font:inherit; font-size:13px;
   font-weight:500; cursor:pointer; text-align:left; min-width:0; }
 .disc-head:hover { background:var(--raised); }
-.disc-head .caret { color:var(--dim); font-size:10px; width:10px; flex:none; transition:transform .15s; }
+.disc-head .caret { color:var(--dim); font-size:9px; width:10px; flex:none; transition:transform .15s; }
 /* o nome trunca em vez de quebrar em duas linhas: sem isto, nome longo vira
    item flex encolhido e o texto se parte no meio do rail */
 .disc-head .nome { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .disc.closed .caret { transform:rotate(-90deg); }
 .disc.closed .topics { display:none; }
 .disc-head .n { flex:none; font-size:11px; color:var(--dim); font-variant-numeric:tabular-nums; }
-.topics { padding-left:10px; margin:1px 0 4px 13px; border-left:1px solid var(--border-soft); }
-.topic { display:block; width:100%; text-align:left; padding:5px 9px; border:none; background:transparent;
+.topics { padding-left:8px; margin:1px 0 6px 12px; border-left:1px solid var(--border); }
+.topic { display:block; width:100%; text-align:left; padding:5px 8px; border:none; background:transparent;
   border-radius:6px; color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .topic:hover { background:var(--raised); color:var(--text); }
-.topic.active { background:var(--raised); color:var(--text); box-shadow:inset 2px 0 0 var(--accent); }
-.btn-ghost { width:100%; padding:8px; margin-top:12px; border:1px dashed var(--border); border-radius:8px;
+.topic.active { background:var(--raised); color:var(--text); font-weight:500; }
+.btn-ghost { width:100%; padding:7px; border:1px solid var(--border); border-radius:7px;
   background:transparent; color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer; }
-.btn-ghost:hover { border-color:var(--accent); color:var(--text); }
+.btn-ghost:hover { background:var(--raised); color:var(--text); }
 
 /* o × de apagar só aparece no hover da linha, para não poluir a árvore */
 .item { position:relative; }
@@ -102,37 +133,66 @@ body.no-side .side { display:none; }
   transition:opacity .12s, color .12s, background .12s; }
 .item:hover .del, .del:focus-visible { opacity:1; }
 .del:hover { color:var(--err); background:var(--err-bg); }
+/* exportar: mesmo lugar e mesmo comportamento do ×, um passo à esquerda */
+.disc > .item > button:first-child { padding-right:46px; }
+.del.exp { right:24px; font-size:12px; padding:3px 5px; }
+.del.exp:hover { color:var(--text); background:var(--border); }
 
 /* ------------------------------------------------------------------ main */
-h1 { font-size:19px; font-weight:600; letter-spacing:-.01em; margin:0; }
-.sub { font-size:13px; color:var(--muted); margin-top:3px; }
-.tabs { display:flex; gap:20px; border-bottom:1px solid var(--border); margin:20px 0; }
-.tab { border:none; background:none; padding:0 0 10px; margin-bottom:-1px; color:var(--muted);
-  font:inherit; font-size:13px; cursor:pointer; border-bottom:1.5px solid transparent; }
-.tab:hover { color:var(--text); }
-.tab.active { color:var(--text); border-bottom-color:var(--text); }
+h1 { font-size:14px; font-weight:600; letter-spacing:-.01em; margin:0; min-width:0;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* abas e modos são o mesmo controle: um grupo com borda, o ativo preenchido */
+.tabs, .seg { display:inline-flex; flex:none; gap:2px; padding:2px;
+  border:1px solid var(--border); border-radius:8px; background:var(--bg); }
+.tab, .modo { border:none; background:none; color:var(--muted); font:inherit; font-size:12.5px;
+  padding:4px 11px; border-radius:6px; cursor:pointer; white-space:nowrap;
+  transition:background .12s, color .12s; }
+.tab:hover, .modo:hover { color:var(--text); }
+.tab.active, .modo.active { background:var(--raised); color:var(--text); }
 .pane { display:none; }
-.pane.active { display:block; }
+.pane.active { display:flex; flex-direction:column; flex:1; min-height:0; }
 
-.card { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
-  box-shadow:var(--shadow); overflow:hidden; }
-.actions { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:14px; }
+.card { background:none; border:none; }
+/* rodapé da área: modo e contagem à esquerda, ação à direita */
+.actions { flex:none; display:flex; align-items:center; gap:14px; height:52px;
+  padding:0 var(--pad); background:var(--panel); border-top:1px solid var(--border); }
+.modos { display:flex; align-items:center; }
 .acao { display:flex; align-items:center; gap:10px; }
-[hidden] { display:none !important; }   /* vence o display das classes acima */
-.counter { font-size:12.5px; color:var(--dim); font-variant-numeric:tabular-nums; }
-.btn { border:none; border-radius:8px; cursor:pointer; font:inherit; font-size:13px; font-weight:600;
-  padding:9px 18px; transition:filter .15s, opacity .15s; }
+.counter { font-size:12.5px; color:var(--dim); font-variant-numeric:tabular-nums; margin-right:auto; }
+.btn { border:none; border-radius:7px; cursor:pointer; font:inherit; font-size:13px; font-weight:500;
+  padding:7px 16px; transition:opacity .15s, background .15s; }
 .btn-primary { background:var(--accent); color:var(--on-accent); }
-.btn-primary:hover:not(:disabled) { filter:brightness(1.08); }
-.btn:disabled { opacity:.5; cursor:default; }
-.btn-outline { background:transparent; border:1px solid var(--border); color:var(--text); font-weight:500; }
-.btn-outline:hover { background:var(--raised); border-color:var(--accent); }
-kbd { font:inherit; font-size:11px; color:var(--dim); border:1px solid var(--border); border-radius:4px; padding:1px 5px; }
+.btn-primary:hover:not(:disabled) { opacity:.85; }
+.btn:disabled { opacity:.4; cursor:default; }
+.btn-outline { background:transparent; border:1px solid var(--border); color:var(--text); }
+.btn-outline:hover { background:var(--raised); }
+/* situação do salvamento automático; clicar salva na hora */
+.situacao { border:none; background:none; padding:0; font:inherit; font-size:12.5px;
+  color:var(--dim); cursor:pointer; }
+.situacao:hover { color:var(--text); }
+.situacao.warn { color:var(--warn); } .situacao.err { color:var(--err); }
+.situacao:empty { display:none; }
+.situacao.parada, .situacao.parada:hover { cursor:default; color:var(--dim); }
+.situacao.parada.err { color:var(--err); }
+/* modo refazer: toma o lugar do seletor Livre / Com dicas */
+.refazendo { display:flex; align-items:center; gap:10px; font-size:12.5px; color:var(--text); }
+/* texto de uma tentativa antiga, no histórico */
+.tent-texto { font-size:14px; line-height:1.8; white-space:pre-wrap; overflow-wrap:anywhere; }
+.tent-conc { display:flex; align-items:baseline; gap:10px; padding:6px 0; font-size:12.5px;
+  border-bottom:1px solid var(--border-soft); }
+.tent-conc:last-child { border-bottom:none; }
+.tent-conc .nome { flex:1; min-width:0; }
 
-.ql-toolbar.ql-snow { border:none !important; border-bottom:1px solid var(--border) !important; padding:7px 10px; background:var(--raised); }
-.ql-container.ql-snow { border:none !important; font-family:inherit; font-size:14.5px; }
-.ql-editor { min-height:340px; line-height:1.75; padding:18px 20px; color:var(--text); }
-.ql-editor.ql-blank::before { color:var(--dim); font-style:normal; left:20px; }
+/* editor: barra de formatação em cima, texto ocupando o resto da área */
+#edit-wrap { flex:1; min-height:0; display:flex; flex-direction:column; }
+.ql-toolbar.ql-snow { flex:none; border:none !important; border-bottom:1px solid var(--border) !important;
+  padding:7px 10px; background:var(--panel); }
+.ql-container.ql-snow { flex:1; min-height:0; height:auto; display:flex; flex-direction:column;
+  border:none !important; font-family:inherit; font-size:15px; }
+/* o recuo da direita cresce em tela larga para a linha não passar de ~800px */
+.ql-editor { flex:1; height:auto; min-height:220px; overflow-y:auto; line-height:1.75; color:var(--text);
+  padding:22px max(var(--texto), calc(100% - 800px)) 22px var(--texto); }
+.ql-editor.ql-blank::before { color:var(--dim); font-style:normal; left:var(--texto); right:var(--texto); }
 .ql-snow .ql-stroke { stroke:var(--muted); }
 .ql-snow .ql-fill { fill:var(--muted); }
 .ql-snow.ql-toolbar button:hover .ql-stroke, .ql-snow.ql-toolbar button.ql-active .ql-stroke { stroke:var(--accent); }
@@ -147,11 +207,13 @@ kbd { font:inherit; font-size:11px; color:var(--dim); border:1px solid var(--bor
 .ql-toolbar.ql-snow .ql-formats { margin-right:10px; }
 .ql-editor h2 { font-size:17px; font-weight:600; margin:14px 0 6px; }
 .ql-editor h3 { font-size:15px; font-weight:600; margin:12px 0 5px; }
-.ql-editor blockquote { border-left:3px solid var(--border); padding-left:12px; margin-left:0; color:var(--muted); }
+.ql-editor blockquote { border-left:2px solid var(--border); padding-left:12px; margin-left:0; color:var(--muted); }
 .ql-editor pre.ql-syntax { background:var(--raised); color:var(--text); border-radius:6px; padding:10px 12px; }
 
 /* -------------------------------------------------------------- revisão */
-.review { padding:20px 22px; font-size:14.5px; line-height:1.9; min-height:340px; white-space:pre-wrap; }
+#review-wrap { flex:1; min-height:0; overflow-y:auto; }
+.review { font-size:15px; line-height:1.9; white-space:pre-wrap;
+  padding:22px max(var(--texto), calc(100% - 800px)) 22px var(--texto); }
 /* sem padding horizontal: senão a marcação empurra a pontuação vizinha */
 .mk { background:none; color:inherit; border-radius:3px; padding:2px 0; cursor:default;
   box-decoration-break:clone; -webkit-box-decoration-break:clone;
@@ -165,28 +227,34 @@ kbd { font:inherit; font-size:11px; color:var(--dim); border:1px solid var(--bor
 .review-note { font-size:12.5px; color:var(--dim); }
 
 /* --------------------------------------------------------------- painel */
-.score { padding:14px 15px; margin-bottom:16px; }
-.score .big { display:flex; align-items:baseline; gap:5px; }
-.score .big b { font-size:28px; font-weight:600; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+/* o painel tem um recuo só; o que é seção ou linha sangra até as bordas */
+.score { margin:calc(-1 * var(--pad)) calc(-1 * var(--pad)) 0; padding:var(--pad);
+  border-bottom:1px solid var(--border); }
+.score .big { display:flex; align-items:baseline; gap:6px; }
+.score .big b { font-size:30px; font-weight:600; letter-spacing:-.03em; line-height:1.1; font-variant-numeric:tabular-nums; }
 .score .big span { font-size:12.5px; color:var(--muted); }
-.bar { height:4px; background:var(--border-soft); border-radius:999px; overflow:hidden; margin:9px 0 12px; }
+.bar { height:3px; background:var(--border); border-radius:999px; overflow:hidden; margin:10px 0 12px; }
 .bar > i { display:block; height:100%; width:0; background:var(--accent); border-radius:999px; transition:width .6s cubic-bezier(.4,0,.2,1); }
-.tally { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; }
+.tally { display:grid; grid-template-columns:1fr 1fr; gap:5px 24px; }
 .tally div { display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted); }
-.tally b { margin-left:auto; color:var(--text); font-variant-numeric:tabular-nums; }
+.tally b { margin-left:auto; color:var(--text); font-weight:500; font-variant-numeric:tabular-nums; }
 .dot { width:7px; height:7px; border-radius:50%; flex:none; }
 .dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)}
 .dot.err{background:var(--err)} .dot.none{background:var(--none)}
 
-.detail { background:var(--panel); border:1px solid var(--border); border-left-width:2px;
-  border-radius:8px; padding:11px 13px; margin-bottom:7px; box-shadow:var(--shadow);
-  transition:border-color .15s, background .15s, transform .15s; }
+#painel .label { margin:0 calc(-1 * var(--pad)); padding:9px var(--pad);
+  border-bottom:1px solid var(--border); }
+#painel .block .label { margin:0 0 8px; padding:0; border:none; }
+
+/* cada conceito é uma linha de borda a borda; a faixa à esquerda dá o estado */
+.detail { margin:0 calc(-1 * var(--pad)); padding:12px var(--pad) 12px calc(var(--pad) - 3px);
+  border-left:3px solid var(--none); border-bottom:1px solid var(--border-soft);
+  cursor:pointer; transition:background .15s, opacity .15s; }
 .detail.ok{border-left-color:var(--ok)} .detail.warn{border-left-color:var(--warn)}
 .detail.err{border-left-color:var(--err)} .detail.none{border-left-color:var(--none)}
-.detail { cursor:pointer; }
-.detail.focus { border-color:var(--accent); background:var(--raised); transform:translateX(-2px); }
+.detail:hover, .detail.focus { background:var(--raised); }
 .detail .top { display:flex; align-items:center; gap:9px; }
-.detail .concept { font-size:12.5px; font-weight:600; flex:1; }
+.detail .concept { font-size:13px; font-weight:500; flex:1; }
 
 /* revisado: some de vista sem sair da lista */
 .detail.done { opacity:.4; }
@@ -194,185 +262,227 @@ kbd { font:inherit; font-size:11px; color:var(--dim); border:1px solid var(--bor
 .tick { width:14px; height:14px; flex:none; border:1px solid var(--border); border-radius:4px;
   display:grid; place-items:center; transition:background .12s, border-color .12s; }
 .tick::after { content:"✓"; font-size:9px; line-height:1; color:var(--on-accent); opacity:0; }
-.detail:hover .tick { border-color:var(--accent); }
+.detail:hover .tick { border-color:var(--muted); }
 .detail.done .tick { background:var(--accent); border-color:var(--accent); }
 .detail.done .tick::after { opacity:1; }
-.linkbtn { background:none; border:none; padding:0; font:inherit; font-size:11px;
-  color:var(--dim); cursor:pointer; text-transform:none; letter-spacing:0; }
-.linkbtn:hover { color:var(--accent); }
+.linkbtn { background:none; border:none; padding:0; font:inherit; font-size:11.5px;
+  color:var(--dim); cursor:pointer; }
+.linkbtn:hover { color:var(--text); }
 .progresso.tudo { color:var(--ok); }
-.detail .why { font-size:12px; color:var(--muted); line-height:1.55; margin-top:5px; }
-.detail .quote { font-size:11.5px; color:var(--dim); margin-top:6px; padding-left:8px;
+.detail .why { font-size:12.5px; color:var(--muted); line-height:1.55; margin-top:5px; }
+.detail .quote { font-size:12px; color:var(--dim); margin-top:7px; padding-left:9px;
   border-left:2px solid var(--border); font-style:italic; }
-.tag { display:block; font-size:9.5px; letter-spacing:.06em; text-transform:uppercase;
-  color:var(--dim); margin-bottom:3px; font-style:normal; }
-/* trecho da teoria: fundo próprio, para não se confundir com o que você escreveu */
+.tag { display:block; font-size:10.5px; color:var(--dim); margin-bottom:2px; font-style:normal; }
+/* trecho da teoria: caixa própria, para não se confundir com o que você escreveu */
 .ref { font-size:12px; color:var(--muted); line-height:1.6; margin-top:8px;
-  padding:8px 11px; background:var(--raised); border-radius:6px;
-  border-left:2px solid var(--accent); white-space:pre-wrap; }
-.detail.done .ref { background:none; }
-.chip { font-size:9.5px; font-weight:500; letter-spacing:.06em; text-transform:uppercase;
-  padding:2px 6px; border-radius:999px; border:1px solid; white-space:nowrap; }
-.chip.ok{color:var(--ok);border-color:var(--ok);background:var(--ok-bg)}
-.chip.warn{color:var(--warn);border-color:var(--warn);background:var(--warn-bg)}
-.chip.err{color:var(--err);border-color:var(--err);background:var(--err-bg)}
-.chip.none{color:var(--none);border-color:var(--none);background:var(--none-bg)}
+  padding:8px 10px; background:var(--bg); border:1px solid var(--border-soft);
+  border-radius:6px; white-space:pre-wrap; }
+.chip { font-size:11px; font-weight:500; white-space:nowrap; }
+.chip.ok{color:var(--ok)} .chip.warn{color:var(--warn)}
+.chip.err{color:var(--err)} .chip.none{color:var(--none)}
 
 .chips { display:flex; flex-wrap:wrap; gap:5px; }
-.miss-chip { font-size:11.5px; color:var(--muted); background:var(--raised);
-  border:1px solid var(--border); border-radius:999px; padding:3px 9px; }
-.block { margin-top:18px; }
-.empty { border:1px dashed var(--border); border-radius:8px; padding:20px 14px; text-align:center;
-  font-size:12.5px; color:var(--dim); line-height:1.6; }
-.err-box { border:1px solid var(--err); background:var(--err-bg); color:var(--err); border-radius:8px;
-  padding:12px 13px; font-size:12px; line-height:1.55; white-space:pre-wrap; }
+.miss-chip { font-size:11.5px; color:var(--muted); border:1px solid var(--border);
+  border-radius:999px; padding:2px 9px; }
+.block { margin-top:var(--pad); }
+.empty { font-size:12.5px; color:var(--dim); line-height:1.6; }
+.err-box { border:1px solid var(--err); background:var(--err-bg); color:var(--err); border-radius:var(--radius);
+  padding:11px 13px; font-size:12px; line-height:1.55; white-space:pre-wrap; }
 .aviso { border:1px solid var(--warn); background:var(--warn-bg); color:var(--warn);
-  border-radius:8px; padding:11px 13px; font-size:12px; line-height:1.55; margin-bottom:14px; }
+  border-radius:var(--radius); padding:11px 13px; font-size:12px; line-height:1.55; margin-bottom:var(--pad); }
 .aviso b { color:inherit; }
 .err-box b { display:block; margin-bottom:4px; }
-.loading { height:2px; background:var(--border-soft); border-radius:999px; overflow:hidden; }
-.loading > i { display:block; height:100%; width:32%; background:var(--accent); border-radius:999px;
+.loading { height:2px; background:var(--border-soft); overflow:hidden;
+  margin:calc(-1 * var(--pad)) calc(-1 * var(--pad)) var(--pad); }
+.loading > i { display:block; height:100%; width:32%; background:var(--accent);
   animation:slide 1.1s ease-in-out infinite; }
 @keyframes slide { 0%{transform:translateX(-110%)} 100%{transform:translateX(420%)} }
+@media (prefers-reduced-motion:reduce) { .loading > i { animation:none; width:100%; opacity:.5; } }
 
 /* ---------------------------------------------------------------- forms */
-.field { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
-.field > span { font-size:12px; color:var(--muted); }
-.row2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-input[type=text], textarea { background:var(--panel); border:1px solid var(--border); border-radius:8px;
-  color:var(--text); font:inherit; padding:10px 12px; width:100%; }
-input:focus, textarea:focus { outline:none; border-color:var(--accent);
-  box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
-textarea { resize:vertical; line-height:1.7; font-size:13.5px; }
+/* disciplina e tópico: duas células de uma mesma faixa, rótulo ao lado */
+.row2 { flex:none; display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid var(--border); }
+.field { display:flex; align-items:center; gap:10px; height:44px; padding:0 var(--pad); min-width:0; }
+.field + .field { border-left:1px solid var(--border); }
+.field:focus-within { box-shadow:inset 0 -1px 0 var(--text); }
+.field > span { flex:none; font-size:12px; color:var(--dim); }
+input[type=text], input[type=search], textarea { background:transparent; border:none; border-radius:0;
+  color:var(--text); font:inherit; padding:0; width:100%; min-width:0; }
+input:focus, textarea:focus { outline:none; }
 ::placeholder { color:var(--dim); }
 
 /* barra de ferramentas da teoria: insere marcadores de TEXTO, não formatação
    rica — a teoria vai literal para o modelo e ancora o campo "reference" */
-.tt-bar { display:flex; align-items:center; gap:2px; padding:7px 9px;
-  background:var(--raised); border-bottom:1px solid var(--border); }
+#pane-theory > .card { flex:1; min-height:0; display:flex; flex-direction:column; }
+.tt-bar { flex:none; display:flex; align-items:center; gap:2px; padding:7px 10px;
+  background:var(--panel); border-bottom:1px solid var(--border); }
 .tt { min-width:27px; height:25px; border:none; background:none; border-radius:5px;
   color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer;
   display:grid; place-items:center; transition:background .12s, color .12s; }
-.tt:hover { background:var(--bg); color:var(--accent); }
+.tt:hover { background:var(--raised); color:var(--text); }
 .tt-txt { min-width:0; padding:0 8px; font-size:11.5px; }
 .tt-sep { width:1px; height:16px; background:var(--border); margin:0 6px; }
-.card > textarea {
-  border:none; border-radius:0; background:var(--panel); display:block;
-  height:calc(100vh - 430px); min-height:400px;
-}
-.card > textarea:focus { box-shadow:none; }
+.tt .on-b { font-weight:700; }
+.tt .on-i { font-style:italic; font-family:Georgia,"Times New Roman",serif; font-size:14px; }
+.tt.on { background:var(--raised); color:var(--text); }
+.tt .on-u { text-decoration:underline; text-underline-offset:2px; }
+.tt .on-s { text-decoration:line-through; }
+
+/* caixa que aparece sobre o texto selecionado, com as ferramentas de formato
+   à mão; fixed para não ser cortada pela rolagem do editor */
+.bolha { position:fixed; top:0; left:0; z-index:40; display:flex; align-items:center; gap:2px;
+  padding:4px; background:var(--panel); border:1px solid var(--border); border-radius:8px;
+  box-shadow:0 6px 18px rgba(0,0,0,.22); user-select:none; }
+.bolha .tt-sep { margin:0 4px; }
+
+/* texto à esquerda, prévia à direita: a teoria continua sendo texto puro com
+   marcação (**negrito**, *itálico*, $fórmula$) e a prévia mostra o resultado */
+.tt-split { flex:1; min-height:0; display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:minmax(0,1fr); }
+.tt-split > textarea { min-height:220px; display:block; resize:none; line-height:1.7; font-size:14px;
+  padding:20px var(--texto); tab-size:4; }
+.tt-split.sem-previa { grid-template-columns:minmax(0,1fr); }
+.tt-split.sem-previa > textarea { padding-right:max(var(--texto), calc(100% - 800px)); }
+.tt-split.sem-previa > .tt-prev { display:none; }
+.tt-prev { min-height:0; overflow-y:auto; padding:20px var(--texto); border-left:1px solid var(--border);
+  font-size:14px; line-height:1.7; overflow-wrap:anywhere; }
+.tt-prev p { margin:0; }
+.tt-prev .p-vazio { height:.9em; }
+.tt-prev h2, .tt-prev h3, .tt-prev h4 { margin:0 0 4px; font-weight:600; letter-spacing:-.01em; }
+.tt-prev h2 { font-size:18px; } .tt-prev h3 { font-size:16px; } .tt-prev h4 { font-size:14px; }
+.tt-prev ul, .tt-prev ol { margin:0; padding-left:1.5em; }
+.tt-prev hr { border:none; border-top:1px solid var(--border); margin:10px 0; }
+.tt-prev img { display:block; max-width:100%; margin:6px 0; border:1px solid var(--border); border-radius:6px; }
+.tt-prev .p-tex { margin:8px 0; overflow-x:auto; overflow-y:hidden; }
+.tt-prev code, .ref code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.88em;
+  background:var(--raised); border-radius:4px; padding:1px 5px; }
+.tt-prev mark, .ref mark { background:var(--mk-warn); color:inherit; border-radius:3px; padding:0 2px; }
+.tt-prev blockquote { margin:0; padding-left:12px; border-left:2px solid var(--border); color:var(--muted); }
+.tt .on-m { background:var(--mk-warn); border-radius:3px; padding:0 4px; }
+.katex { font-size:1.08em; }
 
 /* Prints colados. Ficam fora do textarea, que só guarda texto: no meio da
    teoria entra apenas o marcador "[imagem: x.png]", removido antes de o
    texto ir para o modelo. */
-.tt-imgs { display:flex; flex-wrap:wrap; gap:8px; padding:10px;
-  border-top:1px solid var(--border); background:var(--raised); }
+.tt-imgs { flex:none; display:flex; flex-wrap:wrap; gap:8px; padding:10px var(--pad);
+  border-top:1px solid var(--border); background:var(--panel); }
 .tt-imgs:empty { display:none; }
 .thumb { position:relative; width:88px; height:62px; border-radius:6px; overflow:hidden;
   border:1px solid var(--border); background:var(--bg); cursor:zoom-in; }
-.thumb:hover { border-color:var(--accent); }
+.thumb:hover { border-color:var(--muted); }
 .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
 .thumb .x { position:absolute; top:3px; right:3px; width:18px; height:18px; padding:0;
   border:none; border-radius:4px; background:rgba(0,0,0,.65); color:#fff;
   font-size:11px; line-height:1; cursor:pointer; opacity:0; transition:opacity .12s; }
 .thumb:hover .x { opacity:1; }
 .thumb .x:hover { background:var(--err); }
-.lightbox { text-align:center; }
-.lightbox img { max-width:100%; max-height:76vh; border-radius:8px; }
+.lightbox { text-align:center; overflow:auto; }
+.lightbox img { max-width:100%; max-height:80vh; border-radius:8px; cursor:zoom-in; }
+.lightbox img.real { max-width:none; max-height:none; cursor:zoom-out; }
+.modal.grande { width:min(1500px,100%); max-height:94vh; }
 
-/* ------------------------------------------------- modos e roteiro */
-.modos { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
-/* só o modo selecionado tem preenchimento: nos dois temas isso lê igual,
-   enquanto claro-vs-escuro se inverte de um tema para o outro */
-.seg { display:inline-flex; background:transparent; border:1px solid var(--border);
-  border-radius:8px; padding:2px; }
-.modo { border:none; background:none; color:var(--muted); font:inherit; font-size:12px;
-  padding:5px 13px; border-radius:6px; cursor:pointer; transition:background .12s, color .12s; }
-.modo:hover { color:var(--text); }
-.modo.active { background:var(--raised); color:var(--text); font-weight:500; }
-.modo-nota { font-size:11.5px; color:var(--dim); }
+/* Imagem ligada a um trecho: o texto só ganha um pontilhado; a imagem abre
+   numa janela ao passar o mouse e o trecho fica em destaque enquanto isso. */
+.lig { border-bottom:1.5px dotted var(--lig-linha); border-radius:2px; cursor:zoom-in; transition:background .12s; }
+.lig:hover, .lig.on { background:var(--lig); }
+/* o mesmo destaque no texto cru, onde não há elemento para pintar */
+.lig-realce { position:fixed; z-index:4; pointer-events:none; box-sizing:border-box;
+  background:var(--lig); border-bottom:1.5px solid var(--lig-linha); border-radius:2px; }
+#lig-pop { position:fixed; top:0; left:0; z-index:45; display:flex; flex-direction:column; gap:6px;
+  padding:6px; overflow:auto; background:var(--panel); border:1px solid var(--border);
+  border-radius:10px; box-shadow:0 12px 36px rgba(0,0,0,.4); cursor:zoom-in; }
+#lig-pop img { display:block; flex:none; align-self:center; border-radius:6px;
+  max-width:min(900px,78vw); max-height:min(var(--alt,70vh),74vh); }
+/* mais de uma imagem no mesmo trecho: lado a lado, para caberem à vista */
+#lig-pop.varias { flex-direction:row; flex-wrap:wrap; justify-content:center; max-width:min(1320px,94vw); }
+#lig-pop.varias img { max-width:min(640px,45vw); max-height:min(var(--alt,60vh),62vh); }
 
-.roteiro { display:flex; flex-direction:column; gap:16px; }
-.rt-topo { display:flex; align-items:baseline; gap:8px; }
-.rt-topo b { font-size:12px; font-weight:600; }
-.rt-prog { font-size:11px; color:var(--dim); margin-left:auto; }
-.rt-bloco > .t { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase;
-  color:var(--dim); margin-bottom:7px; }
+/* -------------------------------------------------------------- roteiro */
+.roteiro { display:flex; flex-direction:column; gap:var(--pad); }
+/* mesma altura da faixa do cabeçalho: a linha de cima atravessa a tela */
+.rt-topo { display:flex; align-items:center; gap:10px; height:var(--strip);
+  margin:calc(-1 * var(--pad)) calc(-1 * var(--pad)) 0; padding:0 var(--pad);
+  border-bottom:1px solid var(--border); }
+.rt-topo b { font-size:13px; font-weight:600; }
+.rt-prog { font-size:11.5px; color:var(--dim); margin-left:auto; font-variant-numeric:tabular-nums; }
+.rt-bloco > .t { font-size:12px; font-weight:500; color:var(--dim); margin-bottom:8px; }
 .rt-lista { display:flex; flex-wrap:wrap; gap:6px; }
 /* o termo é um alvo de clique: marcar conforme escreve é o gesto principal */
 .termo { display:inline-flex; align-items:center; gap:6px; cursor:pointer;
-  background:var(--raised); border:1px solid var(--border); border-radius:7px;
-  padding:5px 9px; font-size:12px; color:var(--text); user-select:none;
-  transition:opacity .14s, border-color .14s, background .14s; }
-.termo:hover { border-color:var(--accent); }
-.termo .bx { width:12px; height:12px; border:1.5px solid var(--dim); border-radius:3px;
+  background:var(--bg); border:1px solid var(--border); border-radius:6px;
+  padding:4px 9px; font-size:12px; color:var(--text); user-select:none;
+  transition:opacity .14s, border-color .14s; }
+.termo:hover { border-color:var(--muted); }
+.termo .bx { width:12px; height:12px; border:1px solid var(--dim); border-radius:3px;
   flex:0 0 auto; display:grid; place-items:center; font-size:9px; line-height:1;
   color:transparent; }
 .termo.feito { opacity:.42; }
 .termo.feito .bx { background:var(--ok); border-color:var(--ok); color:#fff; }
 .termo.feito .nm { text-decoration:line-through; }
-.rt-aviso { font-size:11.5px; color:var(--warn); background:var(--warn-bg);
-  border:1px solid var(--border); border-radius:8px; padding:9px 11px; line-height:1.5; }
+.rt-aviso { font-size:12px; color:var(--warn); background:var(--warn-bg);
+  border:1px solid var(--warn); border-radius:var(--radius); padding:9px 11px; line-height:1.5; }
 .rt-aviso button { margin-top:7px; }
-.modo-tag { font-size:10px; padding:1px 6px; border-radius:4px; background:var(--raised);
-  border:1px solid var(--border); color:var(--dim); }
+.modo-tag { font-size:10.5px; padding:1px 6px; border-radius:4px; border:1px solid var(--border); color:var(--dim); }
 
 /* --------------------------------------------------------- estatísticas */
-/* Uma tabela só: disciplina no primeiro nível, tópicos recuados embaixo. */
-.d-row td { background:var(--raised); border-top:1px solid var(--border); font-weight:500; cursor:pointer; }
-.d-row:first-child td { border-top:none; }
-/* nada de display:flex num td: tira a célula do cálculo de colunas da tabela */
-.d-row td:first-child { padding-left:12px; }
-.d-row .caret { display:inline-block; width:12px; color:var(--dim); font-size:9px;
-  transition:transform .15s; }
-.d-row.closed .caret { transform:rotate(-90deg); }
-.d-row .meta { font-size:11px; color:var(--dim); font-weight:400; margin-left:8px; }
-.d-row:hover td { background:var(--border-soft); }
-.t-row td:first-child { padding-left:46px; }
-.t-row.hide { display:none; }
-.t-row td { font-size:12.5px; }
-.badge { font-size:12px; font-weight:600; padding:2px 9px; border-radius:999px; border:1px solid; font-variant-numeric:tabular-nums; }
-.badge.ok{color:var(--ok);border-color:var(--ok);background:var(--ok-bg)}
-.badge.warn{color:var(--warn);border-color:var(--warn);background:var(--warn-bg)}
-.badge.err{color:var(--err);border-color:var(--err);background:var(--err-bg)}
-.badge.none{color:var(--dim);border-color:var(--border);background:transparent}
-table { width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--border);
-  border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); }
-th { font-size:11px; font-weight:500; letter-spacing:.06em; text-transform:uppercase; color:var(--dim);
-  text-align:right; padding:9px 14px; border-bottom:1px solid var(--border); background:var(--raised); }
+/* Uma tabela só, de borda a borda: disciplina é a faixa, tópicos embaixo. */
+#pane-stats { overflow-y:auto; }
+#stats > .empty { padding:var(--pad); }
+table { width:100%; border-collapse:separate; border-spacing:0; }
+th { font-size:12px; font-weight:500; color:var(--dim); text-align:right;
+  padding:10px var(--pad); background:var(--panel); border-bottom:1px solid var(--border); }
+#stats th { position:sticky; top:0; z-index:1; }
 th:first-child { text-align:left; }
-td { padding:10px 14px; border-bottom:1px solid var(--border-soft); font-size:13px; text-align:right;
+td { padding:10px var(--pad); border-bottom:1px solid var(--border-soft); font-size:13px; text-align:right;
   font-variant-numeric:tabular-nums; }
 td:first-child { text-align:left; font-variant-numeric:normal; }
-tr:last-child td { border-bottom:none; }
-tbody tr:hover td { background:var(--raised); }
 tr.never td { color:var(--dim); }
+.d-row td { background:var(--panel); border-bottom-color:var(--border); font-weight:500; cursor:pointer; }
+.d-row:hover td { background:var(--raised); }
+/* nada de display:flex num td: tira a célula do cálculo de colunas da tabela */
+.d-row .caret { display:inline-block; width:14px; color:var(--dim); font-size:9px;
+  transition:transform .15s; }
+.d-row.closed .caret { transform:rotate(-90deg); }
+.d-row .meta { font-size:11.5px; color:var(--dim); font-weight:400; margin-left:8px; }
+.t-row td:first-child { padding-left:calc(var(--pad) + 26px); }
+.t-row.hide { display:none; }
+.t-row td { font-size:12.5px; }
+.badge { font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums; }
+.badge.ok{color:var(--ok)} .badge.warn{color:var(--warn)}
+.badge.err{color:var(--err)} .badge.none{color:var(--dim); font-weight:400}
 .tlink { background:none; border:none; padding:0; font:inherit; color:inherit; cursor:pointer; text-align:left; }
-.tlink:hover { color:var(--accent); }
-.spark { display:inline-flex; align-items:flex-end; gap:2px; height:20px; }
+.tlink:hover { text-decoration:underline; text-underline-offset:3px; }
+.spark { display:inline-flex; align-items:flex-end; gap:2px; height:18px; vertical-align:middle; }
 .spark i { width:4px; min-height:2px; border-radius:1px; display:block; }
 .spark i.ok{background:var(--ok)} .spark i.warn{background:var(--warn)} .spark i.err{background:var(--err)}
 .delta { font-size:11px; margin-left:5px; }
 .delta.up{color:var(--ok)} .delta.down{color:var(--err)}
 .atraso-ok { color:var(--muted); }
-.atraso-warn { color:var(--warn); font-weight:500; }
-.atraso-err { color:var(--err); font-weight:500; }
+.atraso-warn { color:var(--warn); }
+.atraso-err { color:var(--err); }
 
 /* ----------------------------------------------------------------- modal */
-.overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:60;
+/* preso ao #modal: o KaTeX também usa a classe "overlay" (em \vec, por
+   exemplo), e sem isto uma fórmula com vetor cobria a tela inteira */
+#modal > .overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:60;
   display:grid; place-items:center; padding:28px; }
-:root[data-theme="light"] .overlay { background:rgba(20,20,25,.35); }
-.modal { background:var(--bg); border:1px solid var(--border); border-radius:12px;
-  width:min(920px,100%); max-height:88vh; display:flex; flex-direction:column;
-  box-shadow:0 18px 50px rgba(0,0,0,.45); }
-.modal header { display:flex; align-items:center; gap:12px; padding:16px 20px;
-  border-bottom:1px solid var(--border); }
-.modal header h2 { font-size:15px; font-weight:600; margin:0; }
+:root[data-theme="light"] #modal > .overlay { background:rgba(20,20,25,.3); }
+.modal { background:var(--bg); border:1px solid var(--border); border-radius:10px; overflow:hidden;
+  width:min(880px,100%); max-height:88vh; display:flex; flex-direction:column; }
+.modal header { flex:none; display:flex; align-items:center; gap:12px; height:var(--strip);
+  padding:0 var(--pad); background:var(--panel); border-bottom:1px solid var(--border); }
+.modal header h2 { font-size:14px; font-weight:600; margin:0; }
 .meta { font-size:12px; color:var(--dim); font-weight:400; }
-.modal .corpo { overflow-y:auto; padding:18px 20px 24px; }
-.hbtn { border:none; background:none; color:var(--dim); font:inherit; font-size:11px;
-  cursor:pointer; padding:2px 7px; border-radius:5px; border:1px solid transparent; }
-.hbtn:hover { color:var(--accent); border-color:var(--accent); }
+.modal .corpo { overflow-y:auto; padding:var(--pad); }
+.modal.pequeno { width:min(320px,100%); }
+.modal .duas { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.modal .duas .btn { padding:10px; }
+/* dentro do modal a tabela não encosta nas bordas, então ganha a própria */
+.modal table { border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.modal tr:last-child td { border-bottom:none; }
+.hbtn { border:none; background:none; color:var(--dim); font:inherit; font-size:11.5px;
+  cursor:pointer; padding:2px 0 2px 8px; }
+.hbtn:hover { color:var(--text); }
 
 .seq { display:inline-flex; gap:3px; align-items:center; }
 .seq i { width:8px; height:8px; border-radius:2px; display:block; }
@@ -381,69 +491,149 @@ tr.never td { color:var(--dim); }
 .conc-nome { font-weight:500; }
 .conc-nota { font-size:11.5px; color:var(--dim); margin-top:3px; line-height:1.45; }
 tr.limpo td { color:var(--dim); }
-.legenda { display:flex; gap:14px; flex-wrap:wrap; font-size:11px; color:var(--dim); margin-top:10px; }
-.legenda span { display:flex; align-items:center; gap:5px; }
+.legenda { display:flex; gap:16px; flex-wrap:wrap; font-size:11.5px; color:var(--dim); margin-top:10px; }
+.legenda span { display:flex; align-items:center; gap:6px; }
 
-#toast { position:fixed; bottom:20px; right:20px; background:var(--raised); border:1px solid var(--border);
-  border-radius:8px; padding:10px 14px; font-size:13px; opacity:0; transform:translateY(6px);
+/* ---------------------------------------------------------------- PDF
+   A disciplina é montada em #impressao e mandada para a impressão do
+   navegador ("Salvar como PDF"). Fora da exportação o bloco não existe na
+   tela, e a regra só vale com body.imprimindo: um Ctrl+P comum não muda. */
+#impressao { display:none; }
+/* enquanto monta: desenhado fora da tela, só para o navegador ir buscar as
+   fontes das fórmulas antes de a impressão abrir */
+#impressao.medindo { display:block; position:fixed; top:0; left:-99999px; width:176mm; visibility:hidden; }
+@media print {
+  @page { margin:18mm 17mm; }
+  body.imprimindo, html:has(body.imprimindo) { height:auto; background:#fff; color-scheme:light; }
+  body.imprimindo > *:not(#impressao) { display:none !important; }
+  body.imprimindo #impressao {
+    display:block; color:#16161a; font-size:11pt; line-height:1.6;
+    print-color-adjust:exact; -webkit-print-color-adjust:exact;
+    /* papel é sempre claro, qualquer que seja o tema da tela */
+    --text:#16161a; --muted:#55555e; --dim:#85858e; --border:#d4d4da; --raised:#efeff2;
+    --mk-warn:rgba(212,167,44,.38); }
+  #impressao .imp-indice h1 { font-size:22pt; font-weight:600; letter-spacing:-.02em; margin:0 0 14pt; }
+  #impressao .imp-indice ol { margin:0; padding-left:1.4em; }
+  #impressao .imp-indice li { padding:2pt 0; }
+  #impressao .imp-indice a { color:inherit; text-decoration:none; }
+  #impressao .imp-topico { break-before:page; }
+  #impressao .imp-topico:first-child { break-before:auto; }
+  #impressao .imp-disc { font-size:9pt; color:var(--dim); letter-spacing:.04em; text-transform:uppercase; }
+  #impressao .imp-topico > h1 { font-size:17pt; font-weight:600; letter-spacing:-.01em; margin:2pt 0 12pt;
+    padding-bottom:8pt; border-bottom:1px solid var(--border); }
+  #impressao .tt-prev { overflow:visible; padding:0; border:0; min-height:0; font-size:11pt; line-height:1.6; }
+  #impressao .tt-prev h2 { font-size:14pt; } #impressao .tt-prev h3 { font-size:12.5pt; }
+  #impressao .tt-prev h4 { font-size:11pt; }
+  #impressao .tt-prev h2, #impressao .tt-prev h3, #impressao .tt-prev h4 { margin:8pt 0 3pt; break-after:avoid; }
+  #impressao .tt-prev p { orphans:3; widows:3; }
+  #impressao .tt-prev li, #impressao .tt-prev blockquote { break-inside:avoid; }
+  #impressao .tt-prev img { max-height:230mm; object-fit:contain; break-inside:avoid; }
+  #impressao .tt-prev .p-tex { overflow:visible; break-inside:avoid; }
+  #impressao .imp-vazio { color:var(--dim); }
+  #impressao .lig { background:none; border-bottom:1px dotted var(--dim); }
+  #impressao .imp-fig { margin:8pt 0; break-inside:avoid; }
+  #impressao .imp-fig img { display:block; max-width:100%; max-height:95mm; object-fit:contain;
+    border:1px solid var(--border); border-radius:6px; }
+  #impressao .imp-fig figcaption { font-size:9pt; color:var(--dim); margin-top:3pt; }
+}
+
+#toast { position:fixed; bottom:66px; right:16px; background:var(--text); color:var(--bg);
+  border-radius:7px; padding:9px 14px; font-size:13px; opacity:0; transform:translateY(6px);
   pointer-events:none; transition:opacity .2s, transform .2s; z-index:50; }
 #toast.show { opacity:1; transform:translateY(0); }
 
-@media (max-width:1300px) {
-  .shell, body.no-side .shell { grid-template-columns:210px minmax(0,1fr); }
-  .side { grid-column:1/-1; position:static; height:auto; border-left:none; border-top:1px solid var(--border); }
+@media (max-width:1280px) {
+  .shell { grid-template-columns:208px minmax(0,1fr) 350px; }
+  body.no-side .shell { grid-template-columns:208px minmax(0,1fr); }
 }
-@media (max-width:860px) {
-  .shell, body.no-side .shell { grid-template-columns:1fr; }
-  .rail { border-right:none; border-bottom:1px solid var(--border); position:static; }
-  .main { padding:20px 16px 40px; }
+/* sem largura para três colunas: o painel desce para baixo do editor e a
+   página passa a rolar; a lateral e o editor continuam com a altura da tela */
+@media (max-width:1040px) {
+  html, body { height:auto; }
+  .shell, body.no-side .shell { grid-template-columns:208px minmax(0,1fr);
+    grid-template-rows:auto; height:auto; }
+  .rail { position:sticky; top:0; height:100vh; grid-row:1 / span 2; }
+  .main { height:100vh; }
+  .side { grid-column:2; overflow:visible; border-left:none; border-top:1px solid var(--border); }
+}
+@media (max-width:760px) {
+  .shell, body.no-side .shell { grid-template-columns:minmax(0,1fr); }
+  .rail { position:static; height:auto; max-height:45vh; grid-row:auto;
+    border-right:none; border-bottom:1px solid var(--border); }
+  .main { height:auto; min-height:85vh; }
+  .side { grid-column:1; }
   .row2 { grid-template-columns:1fr; }
+  .field + .field { border-left:none; border-top:1px solid var(--border); }
+  .tt-split { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr) minmax(0,1fr); }
+  .tt-split.sem-previa { grid-template-rows:minmax(0,1fr); }
+  .tt-prev { border-left:none; border-top:1px solid var(--border); }
+  :root { --texto:18px; }
 }
 </style>
 </head>
 <body>
 
-<header class="topbar">
-  <div class="brand"><span class="mark">AR</span> Active Recall</div>
-  <div class="crumb" id="crumb"></div>
-  <div class="spacer"></div>
-  <button class="icon-btn" id="btn-tema" title="Alternar tema" onclick="alternarTema()">◐</button>
-</header>
-
 <div class="shell">
   <aside class="rail">
-    <div class="label">Disciplinas <span id="disc-count"></span></div>
-    <div id="tree"></div>
-    <button class="btn-ghost" onclick="novoTopico()">+ Novo tópico</button>
+    <div class="strip">
+      <span class="brand">Active Recall</span>
+      <span class="spacer"></span>
+      <button class="icon-btn" id="btn-tema" title="Alternar tema" onclick="alternarTema()">◐</button>
+    </div>
+    <div class="rail-busca">
+      <input type="search" id="busca" placeholder="Buscar" autocomplete="off" title="Buscar nas teorias (Ctrl+K)">
+    </div>
+    <div class="rail-body">
+      <div id="busca-res" hidden></div>
+      <div id="rail-normal">
+        <div id="fila"></div>
+        <div id="crumb" hidden></div>
+        <div class="label">Disciplinas <span id="disc-count"></span></div>
+        <div id="tree"></div>
+      </div>
+    </div>
+    <div class="rail-foot">
+      <button class="btn-ghost" onclick="novoTopico()">+ Novo tópico</button>
+      <button class="btn-ghost imp" title="Importar ZIP" onclick="$('imp-zip').click()">↑</button>
+      <input type="file" id="imp-zip" accept=".zip,application/zip" hidden>
+    </div>
   </aside>
 
   <main class="main">
-    <h1 id="head-title">Nenhum tópico selecionado</h1>
-    <div class="sub" id="head-sub">Cadastre uma disciplina e um tópico para começar.</div>
-
-    <div class="tabs">
-      <button class="tab active" data-pane="pane-recall">Escrever resumo</button>
-      <button class="tab" data-pane="pane-theory">Editar teoria</button>
-      <button class="tab" data-pane="pane-stats">Estatísticas</button>
-    </div>
+    <header class="strip">
+      <h1 id="head-title">Nenhum tópico</h1>
+      <div id="head-sub" hidden></div>
+      <span class="spacer"></span>
+      <div class="tabs">
+        <button class="tab active" data-pane="pane-recall">Resumo</button>
+        <button class="tab" data-pane="pane-theory">Teoria</button>
+        <button class="tab" data-pane="pane-stats">Estatísticas</button>
+      </div>
+    </header>
 
     <section id="pane-recall" class="pane active">
-      <div class="modos" id="modos">
-        <div class="seg">
-          <button class="modo active" data-modo="livre">Livre</button>
-          <button class="modo" data-modo="dicas">Com dicas</button>
-        </div>
-        <span class="modo-nota" id="modo-nota"></span>
-      </div>
       <div id="edit-wrap" class="card"><div id="editor"></div></div>
       <div id="review-wrap" hidden><div class="card review" id="review"></div></div>
       <div class="actions">
-        <span class="counter" id="counter">0 palavras</span>
-        <div class="acao" id="acao-editar">
-          <kbd>Ctrl</kbd><kbd>Enter</kbd>
-          <button class="btn btn-primary" id="btn-analisar" onclick="analisar()">Analisar</button>
+        <div class="modos" id="modos">
+          <div class="seg">
+            <button class="modo active" data-modo="livre">Livre</button>
+            <button class="modo" data-modo="dicas">Com dicas</button>
+          </div>
+          <span id="modo-nota" hidden></span>
         </div>
-        <div id="acao-revisao" hidden>
+        <div class="refazendo" id="refazendo" hidden>
+          <span id="refazendo-n"></span>
+          <button class="linkbtn" onclick="sairDoRefazer()" title="Voltar ao resumo completo">sair</button>
+        </div>
+        <span class="counter" id="counter">0 palavras</span>
+        <span class="situacao parada" id="rasc-status"></span>
+        <div class="acao" id="acao-editar">
+          <button class="btn btn-primary" id="btn-analisar" title="Ctrl + Enter" onclick="analisar()">Analisar</button>
+        </div>
+        <div class="acao" id="acao-revisao" hidden>
+          <button class="btn btn-outline" id="btn-refazer" onclick="iniciarRefazer()"
+            title="Reescrever só os pontos que não saíram certos">Refazer erros</button>
           <button class="btn btn-outline" onclick="voltarAoEditor()">Editar texto</button>
         </div>
       </div>
@@ -452,34 +642,43 @@ tr.limpo td { color:var(--dim); }
     <section id="pane-theory" class="pane">
       <div class="row2">
         <label class="field"><span>Disciplina</span>
-          <input type="text" id="f-disc" list="discs" placeholder="ex: Banco de Dados" autocomplete="off">
+          <input type="text" id="f-disc" list="discs" placeholder="Banco de Dados" autocomplete="off">
           <datalist id="discs"></datalist></label>
         <label class="field"><span>Tópico</span>
-          <input type="text" id="f-topic" placeholder="ex: Modelo Relacional" autocomplete="off"></label>
+          <input type="text" id="f-topic" placeholder="Modelo Relacional" autocomplete="off"></label>
       </div>
-      <div class="field"><span>Teoria de referência</span>
-        <div class="card">
-          <div class="tt-bar">
-            <button type="button" class="tt" data-tt="titulo" title="Título de seção (##)">H</button>
-            <button type="button" class="tt" data-tt="bullet" title="Lista com marcadores">•</button>
-            <button type="button" class="tt" data-tt="numero" title="Lista numerada">1.</button>
-            <span class="tt-sep"></span>
-            <button type="button" class="tt" data-tt="seta" title="Inserir seta de definição">→</button>
-            <button type="button" class="tt" data-tt="hifen" title="Inserir travessão">–</button>
-            <button type="button" class="tt" data-tt="regra" title="Separador de seção">──</button>
-            <span class="tt-sep"></span>
-            <button type="button" class="tt" data-tt="recuar" title="Recuar linha">»</button>
-            <button type="button" class="tt tt-txt" data-tt="limpar" title="Remover marcadores da linha">limpar</button>
-          </div>
-          <textarea id="f-content" placeholder="Cole aqui o material que serve de gabarito...
-Continua sendo texto puro: é ele que vai literalmente para o modelo.
-Ctrl+V de um print também funciona — a imagem fica salva abaixo."></textarea>
-          <div class="tt-imgs" id="f-imgs"></div>
+      <div class="card">
+        <div class="tt-bar">
+          <button type="button" class="tt" data-tt="negrito" title="Negrito (Ctrl+B)"><span class="on-b">B</span></button>
+          <button type="button" class="tt" data-tt="italico" title="Itálico (Ctrl+I)"><span class="on-i">I</span></button>
+          <button type="button" class="tt" data-tt="destaque" title="Destaque (==texto==)"><span class="on-m">A</span></button>
+          <button type="button" class="tt" data-tt="codigo" title="Código (`texto`)">&lt;/&gt;</button>
+          <button type="button" class="tt" data-tt="formula" title="Fórmula em LaTeX (Ctrl+M)">∑</button>
+          <span class="tt-sep"></span>
+          <button type="button" class="tt" data-tt="titulo" title="Título de seção (##)">H</button>
+          <button type="button" class="tt" data-tt="bullet" title="Lista com marcadores">•</button>
+          <button type="button" class="tt" data-tt="numero" title="Lista numerada">1.</button>
+          <button type="button" class="tt" data-tt="citacao" title="Citação (&gt;)">“</button>
+          <span class="tt-sep"></span>
+          <button type="button" class="tt" data-tt="seta" title="Inserir seta de definição">→</button>
+          <button type="button" class="tt" data-tt="hifen" title="Inserir travessão">–</button>
+          <button type="button" class="tt" data-tt="regra" title="Separador de seção">──</button>
+          <span class="tt-sep"></span>
+          <button type="button" class="tt" data-tt="desrecuar" title="Diminuir recuo (Shift+Tab)">«</button>
+          <button type="button" class="tt" data-tt="recuar" title="Aumentar recuo (Tab)">»</button>
+          <button type="button" class="tt tt-txt" data-tt="limpar" title="Remover marcadores da linha">limpar</button>
+          <span class="spacer"></span>
+          <button type="button" class="tt tt-txt" data-tt="previa" id="btn-previa" title="Mostrar ou esconder a prévia">prévia</button>
         </div>
+        <div class="tt-split" id="f-split">
+          <textarea id="f-content" placeholder="Cole a teoria: texto ou print."></textarea>
+          <div class="tt-prev" id="f-prev"></div>
+        </div>
+        <div class="tt-imgs" id="f-imgs"></div>
       </div>
       <div class="actions">
         <span class="counter" id="theory-counter">0 caracteres</span>
-        <button class="btn btn-outline" onclick="salvarTeoria()">Salvar</button>
+        <button class="situacao" id="save-status" title="Salvar agora (Ctrl+S)" onclick="salvarAgora()"></button>
       </div>
     </section>
 
@@ -489,16 +688,43 @@ Ctrl+V de um print também funciona — a imagem fica salva abaixo."></textarea>
   <aside class="side" id="side"><div id="painel"></div></aside>
 </div>
 
+<div class="bolha" id="bolha-teoria" hidden>
+  <button type="button" class="tt" data-tt="negrito" title="Negrito (Ctrl+B)"><span class="on-b">B</span></button>
+  <button type="button" class="tt" data-tt="italico" title="Itálico (Ctrl+I)"><span class="on-i">I</span></button>
+  <button type="button" class="tt" data-tt="destaque" title="Destaque"><span class="on-m">A</span></button>
+  <button type="button" class="tt" data-tt="codigo" title="Código">&lt;/&gt;</button>
+  <button type="button" class="tt" data-tt="formula" title="Fórmula (Ctrl+M)">∑</button>
+  <span class="tt-sep"></span>
+  <button type="button" class="tt" data-tt="titulo" title="Título">H</button>
+  <button type="button" class="tt" data-tt="bullet" title="Lista">•</button>
+  <button type="button" class="tt" data-tt="citacao" title="Citação">“</button>
+</div>
+<div class="bolha" id="bolha-resumo" hidden>
+  <button type="button" class="tt" data-tt="bold" title="Negrito (Ctrl+B)"><span class="on-b">B</span></button>
+  <button type="button" class="tt" data-tt="italic" title="Itálico (Ctrl+I)"><span class="on-i">I</span></button>
+  <button type="button" class="tt" data-tt="underline" title="Sublinhado (Ctrl+U)"><span class="on-u">U</span></button>
+  <button type="button" class="tt" data-tt="strike" title="Riscado"><span class="on-s">S</span></button>
+  <span class="tt-sep"></span>
+  <button type="button" class="tt" data-tt="header" title="Título">H</button>
+  <button type="button" class="tt" data-tt="bullet" title="Lista">•</button>
+  <button type="button" class="tt" data-tt="blockquote" title="Citação">“</button>
+</div>
+
+<div id="lig-pop" hidden></div>
 <div id="toast"></div>
 <div id="modal"></div>
+<div id="impressao"></div>
 
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script>
 const state = { disciplinas:[], disc:null, topic:null, fechadas:new Set(),
                 carregando:false, texto:"", teoria:"", itens:[], revisados:new Set(),
                 // roteiro do modo "com dicas": o que veio do servidor e quais
                 // termos já foram marcados nesta sessão
-                modo:"livre", roteiro:null, marcados:new Set() };
+                modo:"livre", roteiro:null, marcados:new Set(),
+                // modo "refazer": os pontos errados da última análise, [{nome, k}]
+                refazer:null };
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
@@ -506,6 +732,8 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
 
 /* ------------------------------------------------------------------ tema */
 function aplicarTema(t) {
+  // dois temas: escuro e branco; qualquer outro valor guardado cai no branco
+  if (t !== "dark") t = "light";
   document.documentElement.dataset.theme = t;
   $("btn-tema").textContent = t === "dark" ? "◐" : "◑";
   try { localStorage.setItem("ar-tema", t); } catch (e) {}
@@ -521,7 +749,7 @@ function alternarTema() {
 
 const quill = new Quill("#editor", {
   theme: "snow",
-  placeholder: "Escreva aqui tudo o que você lembra sobre o tópico...",
+  placeholder: "Escreva o que você lembra.",
   modules: { toolbar: [
     [{ header: [2, 3, false] }],
     ["bold", "italic", "underline", "strike"],
@@ -638,6 +866,7 @@ async function carregarArvore() {
     <div class="disc${state.fechadas.has(d.name) ? " closed" : ""}" data-disc="${esc(d.name)}">
       <div class="item">
         <button class="disc-head" title="${esc(d.name)}"><span class="caret">▼</span><span class="nome">${esc(d.name)}</span><span class="n">${d.topics.length}</span></button>
+        <button class="del exp" data-exp="1" title="Exportar">↓</button>
         <button class="del" data-del-disc="1" title="Apagar disciplina">×</button>
       </div>
       <div class="topics">${d.topics.map(t => `
@@ -647,16 +876,116 @@ async function carregarArvore() {
         </div>`
       ).join("") || `<div style="font-size:12px;color:var(--dim);padding:5px 9px">sem tópicos</div>`}</div>
     </div>`).join("")
-    : `<div class="empty" style="padding:14px 12px">Nenhuma disciplina.<br>Crie a primeira abaixo.</div>`;
+    : `<div class="empty" style="padding:4px 8px">Nenhuma disciplina.</div>`;
   if (!state.topic) {
     const d = state.disciplinas.find(x => x.topics.length);
     if (d) selecionar(d.name, d.topics[0]);
   }
+  carregarFila();
 }
 
-function selecionar(disc, topic) {
+/* ------------------------------------------------------- revisar hoje */
+
+/* A revisão espaçada é calculada no servidor (storage._agendar): aqui só
+   entra a lista do que venceu. Sem nenhum tópico praticado, a área não existe. */
+async function carregarFila() {
+  let d = null;
+  try { const r = await fetch("/review"); if (r.ok) d = await r.json(); } catch (e) {}
+  const el = $("fila");
+  if (!d || (!d.due.length && d.next == null)) { el.innerHTML = ""; return; }
+  el.innerHTML = `<div class="label">Revisar hoje <span>${d.due.length}</span></div>` + (d.due.length
+    ? d.due.map(x => {
+        const atraso = x.days_left < 0 ? ` · atrasada ${-x.days_left} dia${x.days_left === -1 ? "" : "s"}` : "";
+        return `<button class="topic fila-item" data-d="${esc(x.discipline)}" data-t="${esc(x.topic)}"
+            title="${esc(x.discipline)} / ${esc(x.topic)}${atraso}">
+          <span class="nome">${esc(x.topic)}</span>
+          ${x.last == null ? "" : `<span class="badge ${faixa(x.last)}">${x.last.toFixed(0)}%</span>`}</button>`;
+      }).join("")
+    : `<div class="fila-nada">próxima ${d.next === 1 ? "amanhã" : `em ${d.next} dias`}</div>`);
+}
+
+$("fila").addEventListener("click", e => {
+  const b = e.target.closest(".fila-item");
+  if (b) { selecionar(b.dataset.d, b.dataset.t); trocarAba("pane-recall"); }
+});
+document.addEventListener("visibilitychange", () => { if (!document.hidden) carregarFila(); });
+
+/* ---------------------------------------------------- rascunho do resumo */
+
+/* O que está no editor é salvo sozinho, por tópico, e volta quando o tópico
+   é aberto de novo. Vale até a análise: depois dela o texto fica guardado na
+   tentativa (dá para reler no histórico) e o rascunho some — a próxima
+   revisão começa de uma página em branco, que é o exercício.
+   `chave` é o tópico dono do conteúdo que está no editor agora. */
+const rasc = { chave: null, disc: null, topic: null, id: 0, sujo: false, carga: 0,
+               fila: Promise.resolve() };
+
+function situacaoRasc(txt, cls = "") {
+  const el = $("rasc-status");
+  el.textContent = txt; el.className = "situacao parada " + cls;
+}
+
+function marcarRascunho() {
+  if (!rasc.topic || state.refazer) return;      // o texto do "refazer" é descartável
+  rasc.sujo = true;
+  clearTimeout(rasc.id);
+  rasc.id = setTimeout(salvarRascunho, 1000);
+  situacaoRasc("salvando…");
+}
+
+/* Lê o editor na hora, antes de qualquer await: quem chama pode trocar o
+   conteúdo logo em seguida. */
+function salvarRascunho(saindo = false) {
+  clearTimeout(rasc.id);
+  if (!rasc.sujo || !rasc.topic || state.refazer) return;
+  rasc.sujo = false;
+  const texto = quill.getText().replace(/\n+$/, ""), chave = rasc.chave;
+  const corpo = JSON.stringify({ discipline: rasc.disc, topic: rasc.topic, text: texto,
+                                 delta: texto.trim() ? quill.getContents() : null });
+  rasc.fila = rasc.fila.then(async () => {
+    let ok = false;
+    try {
+      ok = (await fetch("/draft", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: corpo, keepalive: saindo === true && corpo.length < 60000 })).ok;
+    } catch (e) {}
+    if (chave !== rasc.chave) return;
+    if (!ok) { rasc.sujo = true; situacaoRasc("rascunho não salvo", "err"); }
+    else if (!rasc.sujo) situacaoRasc(texto.trim() ? "salvo" : "");
+  });
+}
+
+async function abrirRascunho(disc, topic) {
+  const chave = disc && topic ? disc + "\n" + topic : null;
+  if (chave === rasc.chave) return;
+  salvarRascunho();                               // o do tópico que está saindo
+  Object.assign(rasc, { chave, disc, topic, sujo: false });
+  const carga = ++rasc.carga;
+  quill.setContents([], "api");
+  situacaoRasc("");
+  if (!chave) return quill.enable(true);
+  // travado enquanto carrega: o que fosse digitado agora seria apagado pelo
+  // rascunho que está chegando
+  quill.enable(false);
+  let d = null;
+  try {
+    await rasc.fila;
+    const r = await fetch(`/draft?discipline=${encodeURIComponent(disc)}&topic=${encodeURIComponent(topic)}`);
+    if (r.ok) d = await r.json();
+  } catch (e) {}
+  if (carga !== rasc.carga) return;               // já trocou de tópico de novo
+  if (d && d.delta && Array.isArray(d.delta.ops)) quill.setContents(d.delta, "api");
+  else if (d && d.text) quill.setText(d.text, "api");
+  if (d && d.text) situacaoRasc("salvo");
+  quill.enable(true);
+}
+
+function selecionar(disc, topic, recarregar = true) {
+  // antes de trocar: os campos da teoria vão ser sobrescritos logo abaixo
+  if (recarregar) salvarTeoria();
   state.disc = disc; state.topic = topic;
-  document.querySelectorAll(".topic").forEach(el =>
+  sairDoRefazer();
+  abrirRascunho(disc, topic);
+  document.querySelectorAll("#tree .topic").forEach(el =>
     el.classList.toggle("active",
       el.dataset.topic === topic && el.closest(".disc").dataset.disc === disc));
   $("crumb").innerHTML = `<b>${esc(disc)}</b> / ${esc(topic)}`;
@@ -665,13 +994,14 @@ function selecionar(disc, topic) {
   state.roteiro = null; state.marcados.clear();
   vazio();
   cabecalho(abaAtiva());
-  if ($("pane-theory").classList.contains("active")) carregarTeoria();
+  if (recarregar && $("pane-theory").classList.contains("active")) carregarTeoria();
 }
 
 $("tree").addEventListener("click", e => {
   const del = e.target.closest(".del");
   if (del) {
     const disc = del.closest(".disc").dataset.disc;
+    if (del.dataset.exp) return abrirExportar(disc);
     del.dataset.delTopic !== undefined
       ? apagarTopico(disc, del.dataset.delTopic)
       : apagarDisciplina(disc);
@@ -700,16 +1030,37 @@ async function textoDaTeoria(disc, topic) {
 
 async function carregarTeoria() {
   if (!state.topic) return;
-  $("f-disc").value = state.disc; $("f-topic").value = state.topic;
-  $("f-content").value = "carregando...";
-  const q = `?discipline=${encodeURIComponent(state.disc)}&topic=${encodeURIComponent(state.topic)}`;
-  const r = await fetch("/theory" + q);
-  $("f-content").value = r.ok ? (await r.json()).content || "" : "";
+  const disc = state.disc, topic = state.topic, ta = $("f-content");
+  const carga = ++auto.carga;
+  // quem chama já salvou o que estava aberto; daqui em diante nada pendente
+  // pode ser gravado por cima do tópico que está chegando
+  clearTimeout(auto.id); auto.sujo = false;
+  $("f-disc").value = disc; $("f-topic").value = topic;
+  // travado enquanto carrega: digitar aqui salvaria "carregando..." como teoria
+  ta.value = "carregando..."; ta.readOnly = true;
+  situacao("");
+  let conteudo = "", ok = false;
+  try {
+    const q = `?discipline=${encodeURIComponent(disc)}&topic=${encodeURIComponent(topic)}`;
+    const r = await fetch("/theory" + q);
+    ok = r.ok;
+    if (ok) conteudo = (await r.json()).content || "";
+  } catch (e) {}
+  // resposta atrasada, de uma carga que já foi substituída por outra ou por
+  // um tópico novo em branco: descarta, senão o texto de um tópico iria parar
+  // (e ser salvo) em outro
+  if (carga !== auto.carga) return;
+  ta.value = conteudo; ta.readOnly = false;
   contarTeoria(); carregarImagens();
+  situacao(ok ? "salvo" : "");
 }
 
 function novoTopico() {
+  salvarTeoria();
+  auto.sujo = false; situacao("");
   trocarAba("pane-theory");
+  auto.carga++;                       // cancela uma carga de teoria em andamento
+  $("f-content").readOnly = false;
   $("f-disc").value = state.disc || ""; $("f-topic").value = ""; $("f-content").value = "";
   $("f-imgs").innerHTML = "";
   contarTeoria(); $("f-topic").focus();
@@ -719,10 +1070,15 @@ function novoTopico() {
    dizendo exatamente o que some. */
 async function apagar(url, aviso, ok) {
   if (!confirm(aviso)) return;
+  // espera a fila de salvamento esvaziar: um salvamento que chegasse depois
+  // do DELETE recriaria o tópico recém-apagado
+  salvarTeoria(); await auto.fila;
+  salvarRascunho(); await rasc.fila;
   const r = await fetch(url, { method: "DELETE" });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) return toast(d.detail || `Falha ao apagar (HTTP ${r.status}).`);
   state.disc = null; state.topic = null;
+  sairDoRefazer(); rasc.sujo = false; abrirRascunho(null, null);
   $("crumb").innerHTML = ""; voltarAoEditor(); vazio();
   await carregarArvore();
   cabecalho(abaAtiva());
@@ -747,23 +1103,99 @@ function apagarDisciplina(disc) {
   );
 }
 
-async function salvarTeoria() {
+/* ------------------------------------------------ salvamento automático */
+
+/* Salva sozinho pouco depois de você parar de digitar; digitando sem parar,
+   salva mesmo assim a cada TETO. Trocar de tópico, de aba ou fechar a página
+   salva na hora. Os envios vão em fila, um de cada vez: dois ao mesmo tempo
+   poderiam chegar fora de ordem e o mais velho ficaria por cima. */
+const ESPERA = 1200, TETO = 8000;
+const auto = { id: 0, sujo: false, desde: 0, versao: 0, carga: 0, fila: Promise.resolve() };
+
+function situacao(txt, cls = "") {
+  const el = $("save-status");
+  el.textContent = txt; el.className = "situacao " + cls;
+}
+
+const existeTopico = (disc, topic) =>
+  state.disciplinas.some(d => d.name === disc && d.topics.includes(topic));
+
+function marcarSujo() {
+  if ($("f-content").readOnly) return;
+  if (!auto.sujo) { auto.sujo = true; auto.desde = Date.now(); }
+  clearTimeout(auto.id);
+  auto.id = setTimeout(salvarTeoria, Math.max(0, Math.min(ESPERA, TETO - (Date.now() - auto.desde))));
+  if (podeSalvar()) situacao("salvando…");
+}
+
+/* Diz na tela por que não dá para salvar ainda; true quando dá. */
+function podeSalvar() {
+  const disc = $("f-disc").value.trim(), topic = $("f-topic").value.trim();
+  if (!$("f-content").value.trim()) {
+    // teoria vazia não é gravada; só vale avisar se havia uma antes
+    situacao(existeTopico(disc, topic) ? "texto vazio: não salvo" : "", "warn");
+    return false;
+  }
+  if (!disc || !topic) { situacao("falta disciplina ou tópico", "warn"); return false; }
+  return true;
+}
+
+/* Grava o que está nos três campos, se houver mudança pendente. Lê os campos
+   na hora, antes de qualquer await: quem chama (troca de tópico, de aba) pode
+   sobrescrevê-los em seguida. `saindo` é o salvamento de quando a página
+   fecha, que precisa sobreviver a ela. */
+function salvarTeoria(saindo = false) {
+  clearTimeout(auto.id);
+  if (!auto.sujo || !podeSalvar()) return;
   const discipline = $("f-disc").value.trim(), topic = $("f-topic").value.trim();
-  const content = $("f-content").value;
-  if (!discipline || !topic || !content.trim()) return toast("Preencha disciplina, tópico e conteúdo.");
-  const r = await fetch("/theory", { method:"POST", headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({ discipline, topic, content }) });
-  if (!r.ok) return toast(`Falha ao salvar (HTTP ${r.status}).`);
-  state.disc = discipline; state.topic = topic;
-  await carregarArvore(); selecionar(discipline, topic);
-  toast(`"${topic}" salvo em ${discipline}.`);
+  const corpo = JSON.stringify({ discipline, topic, content: $("f-content").value });
+  auto.sujo = false;
+  const versao = ++auto.versao;
+  situacao("salvando…");
+
+  auto.fila = auto.fila.then(async () => {
+    let ok = false;
+    try {
+      ok = (await fetch("/theory", { method: "POST", headers: { "Content-Type": "application/json" },
+        // keepalive deixa o envio terminar com a página fechada, mas o
+        // navegador só aceita corpos pequenos nesse modo
+        body: corpo, keepalive: saindo === true && corpo.length < 60000 })).ok;
+    } catch (e) {}
+    const aberto = $("f-disc").value.trim() === discipline && $("f-topic").value.trim() === topic;
+    if (!ok) {
+      // volta a ficar pendente: a próxima tecla, ou um clique aqui, tenta de novo
+      if (aberto && versao === auto.versao) { auto.sujo = true; situacao("falha ao salvar", "err"); }
+      return;
+    }
+    // tópico novo (ou salvo com outro nome) passa a ser o tópico aberto, sem
+    // recarregar o texto: isso apagaria o que foi digitado nesse meio-tempo.
+    // O estado muda antes de a árvore recarregar porque, sem tópico aberto,
+    // ela abriria o primeiro da lista e recarregaria o texto por conta própria
+    const mudou = aberto && (state.disc !== discipline || state.topic !== topic);
+    if (mudou) { state.disc = discipline; state.topic = topic; }
+    if (!existeTopico(discipline, topic)) await carregarArvore();
+    if (mudou) selecionar(discipline, topic, false);
+    if (aberto && versao === auto.versao && !auto.sujo) situacao("salvo");
+  });
+}
+
+function salvarAgora() {
+  auto.sujo = true;
+  salvarTeoria();
 }
 
 /* ------------------------------------------------------------- análise */
 
+function contarPalavras() {
+  const t = quill.getText().trim();
+  const p = t ? t.split(/\s+/).length : 0;
+  $("counter").textContent = `${p.toLocaleString("pt-BR")} palavra${p === 1 ? "" : "s"}`;
+}
+
 function voltarAoEditor() {
   $("edit-wrap").hidden = false; $("review-wrap").hidden = true;
   $("acao-editar").hidden = false; $("acao-revisao").hidden = true;
+  contarPalavras();                 // na revisão o contador mostrava os trechos marcados
 }
 
 async function analisar() {
@@ -776,14 +1208,18 @@ async function analisar() {
   const btn = $("btn-analisar");
   btn.disabled = true; btn.textContent = "Analisando...";
   $("painel").innerHTML = `<div class="loading"><i></i></div>
-    <div class="empty" style="margin-top:14px">Comparando seu texto com a teoria de
-    <b>${esc(state.topic)}</b>.<br>Modelos gratuitos podem demorar.</div>`;
+    <div class="empty">Analisando…</div>`;
+  // o texto fica parado enquanto o modelo lê; e o rascunho vai antes da
+  // análise: se ela falhar, o que foi escrito continua salvo
+  quill.enable(false);
+  salvarRascunho(); await rasc.fila;
+  const foco = state.refazer ? state.refazer.map(x => x.nome) : [];
 
   try {
     const r = await fetch("/check-knowledge", { method:"POST",
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify({ discipline: state.disc, topic: state.topic,
-                             user_text: texto, mode: state.modo }) });
+                             user_text: texto, mode: state.modo, focus: foco }) });
     const bruto = await r.text();
     if (!r.ok) throw new Error(`HTTP ${r.status}\n${bruto.slice(0, 400)}`);
     let d;
@@ -800,6 +1236,12 @@ async function analisar() {
     renderPainel(d, marcadas);
     $("edit-wrap").hidden = true; $("review-wrap").hidden = false;
     $("acao-editar").hidden = true; $("acao-revisao").hidden = false;
+    $("btn-refazer").hidden = !pontosErrados().length;
+    if (!foco.length) {
+      // o servidor guardou o texto na tentativa e apagou o rascunho
+      clearTimeout(rasc.id); rasc.sujo = false; situacaoRasc("");
+      carregarFila();
+    }
     $("counter").textContent = marcadas
       ? `${marcadas} trecho${marcadas === 1 ? "" : "s"} marcado${marcadas === 1 ? "" : "s"}`
       : "nenhum trecho localizado no texto";
@@ -809,7 +1251,49 @@ async function analisar() {
 O agente está em modo verbose: o terminal do uvicorn mostra a resposta crua do modelo.</div>`;
   } finally {
     state.carregando = false; btn.disabled = false; btn.textContent = "Analisar";
+    quill.enable(true);
   }
+}
+
+/* --------------------------------------------------- refazer o que errou */
+
+/* Depois da análise: o editor esvazia e só os pontos que não saíram certos
+   são pedidos de novo. A análise seguinte avalia apenas eles e não entra no
+   histórico — reescrever logo depois de ler a correção não mede memória. */
+const pontosErrados = () => state.itens
+  .filter(i => i._k !== "ok" && String(i.concept || "").trim())
+  .map(i => ({ nome: String(i.concept).trim(), k: i._k }));
+
+function barraRefazer() {
+  const on = !!state.refazer;
+  $("modos").hidden = on; $("refazendo").hidden = !on;
+  if (on) $("refazendo-n").textContent =
+    `Refazendo ${state.refazer.length} ponto${state.refazer.length === 1 ? "" : "s"}`;
+  quill.root.dataset.placeholder = on ? "Reescreva só os pontos ao lado." : "Escreva o que você lembra.";
+}
+
+function iniciarRefazer() {
+  const pontos = pontosErrados();
+  if (!pontos.length || state.carregando) return;
+  state.refazer = pontos;
+  quill.setContents([], "api");
+  voltarAoEditor(); barraRefazer(); renderRefazer();
+  quill.focus();
+}
+
+function sairDoRefazer() {
+  if (!state.refazer) return;
+  state.refazer = null;
+  quill.setContents([], "api");
+  voltarAoEditor(); barraRefazer(); vazio();
+}
+
+function renderRefazer() {
+  $("painel").innerHTML = `<div class="label" style="margin-top:calc(-1 * var(--pad))">Refazer
+      <span>${state.refazer.length}</span></div>
+    ${state.refazer.map(x => `<div class="detail ${x.k}" style="cursor:default">
+      <div class="top"><span class="concept">${esc(x.nome)}</span>
+        <span class="chip ${x.k}">${ROTULO[x.k]}</span></div></div>`).join("")}`;
 }
 
 /* Quando o modelo não devolve "reference", procura na teoria a linha que fala
@@ -834,7 +1318,7 @@ function trechoDaTeoria(conceito) {
    mentira: conceito "não lembrado" não tem trecho por definição. */
 function notaDeRodape(marcadas, itens, nadaBateu) {
   if (marcadas)
-    return "Passe o mouse sobre um trecho marcado no texto para achar o conceito, e vice-versa. ";
+    return "";
   if (nadaBateu)
     return "Nada foi marcado no texto porque nenhum conceito da teoria apareceu nele. ";
   const comCitacao = itens.filter(i => i._k !== "none" && (i.evidence || "").trim()).length;
@@ -863,13 +1347,14 @@ function renderPainel(d, marcadas) {
   const vistos = new Set(itens.map(i => normalizar(i.concept || "").texto.trim()));
   const orfaos = faltou.filter(m => !vistos.has(normalizar(m).texto.trim()));
 
+  const nota = notaDeRodape(marcadas, itens, nadaBateu);
   $("painel").innerHTML = `
     ${nadaBateu ? `<div class="aviso">Nenhum dos ${itens.length} conceito(s) da teoria de
       <b>${esc(state.topic)}</b> apareceu no seu texto.<br>
       Se não era esperado, confira se o tópico selecionado no menu à esquerda é o
       mesmo sobre o qual você escreveu.</div>` : ""}
     <div class="card score">
-      <div class="big"><b>${pct.toFixed(0)}</b><span>% de cobertura</span></div>
+      <div class="big"><b>${pct.toFixed(0)}</b><span>${state.refazer ? "% dos pontos refeitos" : "% de cobertura"}</span></div>
       <div class="bar"><i style="width:${pct}%"></i></div>
       <div class="tally">
         <div><i class="dot ok"></i>Lembrados <b>${conta("ok")}</b></div>
@@ -890,20 +1375,15 @@ function renderPainel(d, marcadas) {
         <div class="why">${esc(it.explanation)}</div>
         ${it._marcado ? `<div class="quote"><span class="tag">você escreveu</span>“${esc((it.evidence || "").trim())}”</div>` : ""}
         ${it._semTrecho ? `<div class="quote" style="font-style:normal">trecho não localizado no texto</div>` : ""}
-        ${it._ref ? `<div class="ref"><span class="tag">na teoria</span>${esc(it._ref)}</div>` : ""}
+        ${it._ref ? `<div class="ref"><span class="tag">na teoria</span>${fmtInline(it._ref)}</div>` : ""}
       </div>`).join("")}
 
     ${orfaos.length ? `<div class="block">
       <div class="label">Citados como ausentes, sem análise</div>
       <div class="chips">${orfaos.map(m => `<span class="miss-chip">${esc(m)}</span>`).join("")}</div>
-      <div style="font-size:11px;color:var(--dim);margin-top:6px">
-        O modelo listou estes como faltando, mas não gerou um card para eles.</div>
-    </div>` : ""}
+      </div>` : ""}
 
-    <div class="block" style="font-size:11.5px;color:var(--dim);line-height:1.55">
-      ${notaDeRodape(marcadas, itens, nadaBateu)}
-      Clique num conceito para marcá-lo como revisado.
-    </div>`;
+    ${nota ? `<div class="block empty">${nota}</div>` : ""}`;
   atualizarProgresso();
 }
 
@@ -935,9 +1415,10 @@ function atualizarProgresso() {
 }
 
 function vazio() {
+  if (state.refazer) return renderRefazer();
   // no modo "com dicas" o painel direito é o roteiro, não um espaço em branco
   if (state.modo === "dicas") return state.roteiro ? renderRoteiro() : carregarRoteiro();
-  $("painel").innerHTML = `<div class="empty">Nenhuma análise ainda.<br>Escreva seu resumo e clique em Analisar.</div>`;
+  $("painel").innerHTML = `<div class="empty">Sem análise.</div>`;
 }
 
 /* ------------------------------------------------------ modos de escrita */
@@ -977,7 +1458,7 @@ async function carregarRoteiro() {
 }
 
 function vazioSemTopico() {
-  $("painel").innerHTML = `<div class="empty">Selecione um tópico para ver o roteiro.</div>`;
+  $("painel").innerHTML = `<div class="empty">Nenhum tópico.</div>`;
 }
 
 async function gerarRoteiro() {
@@ -988,8 +1469,7 @@ async function gerarRoteiro() {
       + `${state.marcados.size} termo(s) que você já marcou.`)) return;
   state.carregando = true;
   $("painel").innerHTML = `<div class="loading"><i></i></div>
-    <div class="empty" style="margin-top:14px">Lendo a teoria de <b>${esc(state.topic)}</b>
-    para montar o roteiro.<br>Isso usa o modelo uma vez; depois fica salvo.</div>`;
+    <div class="empty">Gerando dicas…</div>`;
   try {
     const r = await fetch(`/outline?discipline=${encodeURIComponent(state.disc)}`
                         + `&topic=${encodeURIComponent(state.topic)}`, { method:"POST" });
@@ -1010,9 +1490,8 @@ function renderRoteiro() {
   const r = state.roteiro;
 
   if (!r || !r.blocks) {
-    $("painel").innerHTML = `<div class="empty">Este tópico ainda não tem roteiro.<br>
-      Ele sai da própria teoria, com uma chamada ao modelo.</div>
-      <div style="margin-top:14px"><button class="btn btn-primary" onclick="gerarRoteiro()">Gerar dicas</button></div>`;
+    $("painel").innerHTML = `<div class="empty">Sem roteiro.</div>
+      <div style="margin-top:12px"><button class="btn btn-primary" onclick="gerarRoteiro()">Gerar dicas</button></div>`;
     return;
   }
 
@@ -1045,8 +1524,6 @@ function renderRoteiro() {
             <span class="bx">✓</span><span class="nm">${esc(t)}</span></span>`;
         }).join("")}</div>
       </div>`).join("")}
-    <div style="font-size:11.5px;color:var(--dim);line-height:1.55">As dicas dizem o que
-      citar, não o que é. A análise continua comparando seu texto com a teoria inteira.</div>
   </div>`;
 }
 
@@ -1085,19 +1562,14 @@ async function carregarStats() {
   $("stats").innerHTML = `<div class="empty">Carregando...</div>`;
   const d = await (await fetch("/stats")).json();
   const discs = d.disciplines || [];
-  if (!discs.length) { $("stats").innerHTML = `<div class="empty">Nenhuma disciplina cadastrada ainda.</div>`; return; }
+  if (!discs.length) { $("stats").innerHTML = `<div class="empty">Nenhuma disciplina.</div>`; return; }
 
   $("stats").innerHTML = `<table class="stats"><thead><tr>
-      <th>Disciplina / tópico</th><th>Última vez</th><th>Tentativas</th>
+      <th>Disciplina / tópico</th><th>Última vez</th><th>Revisão</th><th>Tentativas</th>
       <th>Média</th><th>Evolução</th>
     </tr></thead><tbody>
     ${discs.map(d => linhaDisciplina(d) + d.topics.map(t => linhaTopico(d.name, t)).join("")).join("")}
-    </tbody></table>
-    <div class="legenda">
-      <span><i class="dot ok"></i>praticado nos últimos 7 dias</span>
-      <span><i class="dot warn"></i>1 a 2 semanas parado</span>
-      <span><i class="dot err"></i>mais de 2 semanas parado</span>
-    </div>`;
+    </tbody></table>`;
 }
 
 const pc = v => v == null ? "—" : v.toFixed(0) + "%";
@@ -1121,6 +1593,16 @@ function quando(iso) {
   return `<span class="${cls}" title="${esc(d.toLocaleString("pt-BR"))}">${txt}</span>`;
 }
 
+/* Quando o tópico volta, pela revisão espaçada. */
+function revisao(t) {
+  const n = t.days_left;
+  if (n == null) return `<span style="color:var(--dim)">—</span>`;
+  const dica = `intervalo atual: ${t.interval} dia${t.interval === 1 ? "" : "s"}`;
+  if (n < 0) return `<span class="atraso-err" title="${dica}">atrasada ${-n} d</span>`;
+  if (n === 0) return `<span class="atraso-warn" title="${dica}">hoje</span>`;
+  return `<span title="${dica}">${n === 1 ? "amanhã" : `em ${n} d`}</span>`;
+}
+
 function linhaDisciplina(d) {
   const fechada = state.fechadas.has(d.name);
   // a data da disciplina é a do tópico mais recente, então ela pode parecer
@@ -1137,6 +1619,8 @@ function linhaDisciplina(d) {
       <span class="meta">${d.practiced}/${d.topics.length} praticados${parados
         ? ` · <span class="atraso-warn">${parados} parado${parados > 1 ? "s" : ""}</span>` : ""}</span></td>
     <td>${quando(d.last_at)}</td>
+    <td>${(n => n ? `<span class="atraso-warn">${n} para hoje</span>` : "")(
+      d.topics.filter(t => t.days_left != null && t.days_left <= 0).length)}</td>
     <td>${d.attempts}</td>
     <td>${badge}</td>
     <td>${d.attempts ? `<button class="hbtn" data-hd="${esc(d.name)}">histórico</button>` : ""}</td></tr>`;
@@ -1147,7 +1631,7 @@ function linhaTopico(disc, t) {
   const link = `<button class="tlink" data-d="${esc(disc)}" data-t="${esc(t.name)}">${esc(t.name)}</button>`;
   if (!t.attempts)
     return `<tr class="t-row never${oculta}" data-de="${esc(disc)}"><td>${link}</td>
-      <td>${quando(null)}</td><td>0</td><td>—</td><td>nunca praticado</td></tr>`;
+      <td>${quando(null)}</td><td>—</td><td>0</td><td>—</td><td>nunca praticado</td></tr>`;
 
   // a variação é entre a primeira e a última tentativa; sem as colunas
   // "Primeira" e "Última" ela vive junto do sparkline, que é sobre o mesmo
@@ -1158,7 +1642,7 @@ function linhaTopico(disc, t) {
        >${delta > 0 ? "▲" : "▼"}${Math.abs(delta).toFixed(0)}</span>` : "";
   const spark = t.trend.map(v => `<i class="${faixa(v)}" style="height:${Math.max(10, v)}%" title="${v}%"></i>`).join("");
   return `<tr class="t-row${oculta}" data-de="${esc(disc)}"><td>${link}</td>
-    <td>${quando(t.last_at)}</td><td>${t.attempts}</td>
+    <td>${quando(t.last_at)}</td><td>${revisao(t)}</td><td>${t.attempts}</td>
     <td><b>${pc(t.avg)}</b></td>
     <td><span class="spark">${spark}</span>${seta}
       <button class="hbtn" data-hd="${esc(disc)}" data-ht="${esc(t.name)}">histórico</button></td></tr>`;
@@ -1220,7 +1704,7 @@ function renderModal(h) {
         <div class="block"><div class="label">Tentativas</div>
           <table><thead><tr>
             <th>Quando</th>${h.topic ? "" : "<th>Tópico</th>"}<th>Cobertura</th>
-            <th>Lembrados</th><th>Parciais</th><th>Incorretos</th><th>Não lembrados</th>
+            <th>Lembrados</th><th>Parciais</th><th>Incorretos</th><th>Não lembrados</th><th></th>
           </tr></thead><tbody>
           ${tentativas.slice().reverse().map(a => `<tr>
             <td>${esc((a.at || "").replace("T", " ").slice(0, 16))}
@@ -1228,7 +1712,8 @@ function renderModal(h) {
             ${h.topic ? "" : `<td>${esc(a.topic || "")}</td>`}
             <td><b>${a.coverage == null ? "—" : a.coverage.toFixed(0) + "%"}</b></td>
             <td>${a.remembered ?? 0}</td><td>${a.partially_remembered ?? 0}</td>
-            <td>${a.incorrect ?? 0}</td><td>${a.not_remembered ?? 0}</td></tr>`).join("")}
+            <td>${a.incorrect ?? 0}</td><td>${a.not_remembered ?? 0}</td>
+            <td>${a.has_text ? `<button class="hbtn" data-tent="${esc(a.id)}">texto</button>` : ""}</td></tr>`).join("")}
           </tbody></table></div>
       </div>
     </div></div>`;
@@ -1236,9 +1721,47 @@ function renderModal(h) {
 
 const MAPA = { ok:"ok", partial:"warn", incorrect:"err", missing:"none" };
 
+/* O resumo como foi escrito numa tentativa, com o resultado de cada conceito.
+   ‹ e › vão para a tentativa anterior e a seguinte do mesmo tópico. */
+async function abrirTentativa(id) {
+  const r = await fetch("/attempt?id=" + encodeURIComponent(id));
+  if (!r.ok) return toast(`Falha ao carregar a tentativa (HTTP ${r.status}).`);
+  const t = await r.json(), conceitos = t.concepts || [];
+  const nav = (alvo, sinal, dica) => `<button class="icon-btn" title="${dica}"
+    ${alvo ? `data-tent="${esc(alvo)}"` : "disabled style=\"opacity:.3;cursor:default\""}>${sinal}</button>`;
+  $("modal").innerHTML = `
+    <div class="overlay" data-fechar="1"><div class="modal">
+      <header>
+        <h2>Tentativa</h2>
+        <span class="meta" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.topic)}
+          · ${esc((t.at || "").replace("T", " ").slice(0, 16))}
+          · ${t.coverage == null ? "—" : Number(t.coverage).toFixed(0) + "%"}${t.mode === "dicas" ? " · com dicas" : ""}</span>
+        <span class="spacer"></span>
+        ${nav(t.prev, "‹", "Tentativa anterior")}${nav(t.next, "›", "Tentativa seguinte")}
+        <button class="hbtn" data-voltar-d="${esc(t.discipline)}" data-voltar-t="${esc(t.topic)}">histórico</button>
+        <button class="icon-btn" data-fechar="1" title="Fechar">✕</button>
+      </header>
+      <div class="corpo">
+        <div class="tent-texto">${esc(t.text || "")}</div>
+        ${conceitos.length ? `<div class="block"><div class="label">Conceitos <span>${conceitos.length}</span></div>
+          ${conceitos.map(c => `<div class="tent-conc"><span class="nome">${esc(c.concept)}</span>
+            <span class="chip ${MAPA[c.status]}">${ST_ROTULO[c.status]}</span></div>`).join("")}</div>` : ""}
+      </div>
+    </div></div>`;
+}
+
 function fecharModal() { $("modal").innerHTML = ""; }
 
-$("modal").addEventListener("click", e => { if (e.target.closest("[data-fechar]")) fecharModal(); });
+$("modal").addEventListener("click", e => {
+  const t = e.target.closest("[data-tent]");
+  if (t) return abrirTentativa(t.dataset.tent);
+  const v = e.target.closest("[data-voltar-d]");
+  if (v) return abrirHistorico(v.dataset.voltarD, v.dataset.voltarT);
+  const img = e.target.closest(".lightbox img");
+  if (img) return img.classList.toggle("real");
+  // fecha no ✕ e no fundo escuro; um clique dentro da janela não
+  if (e.target.matches("[data-fechar]")) fecharModal();
+});
 document.addEventListener("keydown", e => { if (e.key === "Escape") fecharModal(); });
 
 $("stats").addEventListener("click", e => {
@@ -1268,11 +1791,12 @@ const abaAtiva = () => (document.querySelector(".pane.active") || {}).id || "pan
 
 function cabecalho(id) {
   $("head-title").textContent = id === "pane-stats" ? "Estatísticas"
-    : (state.topic || "Nenhum tópico selecionado");
+    : (state.topic || "Nenhum tópico");
   $("head-sub").textContent = SUB[id];
 }
 
 function trocarAba(id) {
+  salvarTeoria();
   document.querySelectorAll(".pane").forEach(p => p.classList.toggle("active", p.id === id));
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.pane === id));
   document.body.classList.toggle("no-side", id !== "pane-recall");
@@ -1283,6 +1807,125 @@ function trocarAba(id) {
 
 function contarTeoria() {
   $("theory-counter").textContent = $("f-content").value.length.toLocaleString("pt-BR") + " caracteres";
+  agendarPrevia();
+}
+
+/* ------------------------------------------ marcação da teoria → HTML */
+
+/* A teoria é texto puro e continua sendo: **negrito**, *itálico*, ==destaque==,
+   `código` e $fórmula$ são marcação dentro dele. Estas regras espelham as de
+   storage.sem_enfase(), que tira a ênfase antes de o texto ir para o modelo.
+   Fórmula: "$" colado no conteúdo dos dois lados e sem dígito depois, para
+   "R$ 10 e R$ 20" não virar matemática. Fórmula e código são trechos
+   protegidos: um "*" dentro deles é conteúdo, não ênfase. */
+const RE_FORMULA = /\$\$([\s\S]+?)\$\$|\$(?!\s)([^$\n]+?)(?<!\s)\$(?!\d)|`([^`\n]+)`/g;
+
+function tex(src, bloco) {
+  // sem a biblioteca (offline) ou com LaTeX inválido, mostra o código cru
+  if (!window.katex) return `<code>${esc(src)}</code>`;
+  try { return katex.renderToString(src, { displayMode: bloco, throwOnError: false }); }
+  catch (e) { return `<code>${esc(src)}</code>`; }
+}
+
+/* A marca precisa estar solta de letras e números por fora: "2**3 e 4**5" e
+   "a==b e c==d" são código, não negrito nem destaque. */
+function enfase(t) {          // recebe texto já escapado
+  return t.replace(/(?<![\w*])\*\*(?=\S)(.+?)(?<=\S)\*\*(?![\w*])/g, "<strong>$1</strong>")
+          .replace(/(?<![\w*])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![\w*])/g, "<em>$1</em>")
+          .replace(/(?<![\w=])==(?=\S)(.+?)(?<=\S)==(?![\w=])/g, "<mark>$1</mark>");
+}
+
+/* Imagem ligada a um trecho: "[trecho](imagem:a.png)" — com mais de uma,
+   "[trecho](imagem:a.png,b.png)". A imagem não aparece no texto: o trecho
+   ganha um sublinhado e ela abre ao passar o mouse. Mesma regra de
+   storage.LIGADA, que deixa só o trecho antes de o texto ir para o modelo.
+   Só com matchAll e replace: é uma regex global, test() guardaria posição. */
+const RE_LIG = /\[([^\[\]\n]+)\]\(\s*imagem:\s*([^()\n]+?)\s*\)/gi;
+const nomesDaLista = lista => String(lista || "").split(",").map(x => x.trim()).filter(Boolean);
+
+function fmtInline(s) {
+  s = String(s ?? "");
+  // a ligação sai da frente antes da ênfase e volta depois: assim
+  // "**[termo](imagem:x.png)**" continua sendo negrito. Os três caracteres
+  // são de uso privado, não aparecem em texto de verdade
+  const listas = [];
+  s = s.replace(RE_LIG, (tudo, dentro, lista) =>
+    `${listas.push(lista) - 1}${dentro}`);
+  let out = "", fim = 0;
+  for (const m of s.matchAll(RE_FORMULA)) {
+    out += enfase(esc(s.slice(fim, m.index)));
+    out += m[1] != null ? tex(m[1].trim(), true)
+         : m[2] != null ? tex(m[2], false) : `<code>${esc(m[3])}</code>`;
+    fim = m.index + m[0].length;
+  }
+  out += enfase(esc(s.slice(fim)));
+  return listas.length
+    ? out.replace(/(\d+)/g, (t, k) => `<span class="lig" data-imgs="${esc(listas[k])}">`)
+         .replace(//g, "</span>")
+    : out;
+}
+
+/* disc e topic dizem de onde são as imagens; sem eles, vale o que está aberto
+   no formulário (é o caso da prévia) */
+function renderTeoria(texto, disc, topic) {
+  const linhas = texto.split("\n");
+  let html = "", lista = null;
+  const fecha = () => { if (lista) { html += `</${lista}>`; lista = null; } };
+  const abre = tipo => { if (lista !== tipo) { fecha(); html += `<${tipo}>`; lista = tipo; } };
+  // espaços no começo da linha: em parágrafo viram recuo só da primeira linha
+  // (o "espaço inicial"), em item de lista empurram o item inteiro
+  const recuo = (l, prop = "margin-left") => {
+    const n = Math.min(24, l.match(/^\s*/)[0].replace(/\t/g, RECUO).length);
+    return n ? ` style="${prop}:${n * .5}em"` : "";
+  };
+
+  for (let i = 0; i < linhas.length; i++) {
+    const l = linhas[i]; let m;
+    // fórmula em bloco aberta numa linha e fechada em outra
+    if (/^\s*\$\$/.test(l) && !/\$\$.*\$\$/.test(l)) {
+      let j = i + 1;
+      while (j < linhas.length && !linhas[j].includes("$$")) j++;
+      if (j < linhas.length) {
+        const corpo = [l.replace(/^\s*\$\$/, ""), ...linhas.slice(i + 1, j),
+                       linhas[j].slice(0, linhas[j].indexOf("$$"))].join("\n").trim();
+        fecha(); html += `<div class="p-tex">${tex(corpo, true)}</div>`;
+        i = j; continue;
+      }
+    }
+    if (!l.trim()) { fecha(); html += `<div class="p-vazio"></div>`; }
+    else if (m = l.match(/^\s*(#{1,6})\s+(.*)$/)) {
+      const h = Math.min(4, m[1].length + 1);
+      fecha(); html += `<h${h}>${fmtInline(m[2])}</h${h}>`;
+    }
+    else if (m = l.match(/^\s*\[imagem:\s*([^\]\n]+?)\s*\]\s*$/)) {
+      fecha(); html += `<img src="/image${esc(qsImg(m[1], disc, topic))}" alt="${esc(m[1])}" loading="lazy">`;
+    }
+    else if (/^\s*[─—_-]{3,}\s*$/.test(l)) { fecha(); html += "<hr>"; }
+    else if (m = l.match(/^\s*[-•*]\s+(.*)$/)) { abre("ul"); html += `<li${recuo(l)}>${fmtInline(m[1])}</li>`; }
+    else if (m = l.match(/^\s*(\d+)[.)]\s+(.*)$/)) {
+      abre("ol"); html += `<li value="${m[1]}"${recuo(l)}>${fmtInline(m[2])}</li>`;
+    }
+    else if (m = l.match(/^\s*>\s?(.*)$/)) { fecha(); html += `<blockquote>${fmtInline(m[1]) || "&nbsp;"}</blockquote>`; }
+    else { fecha(); html += `<p${recuo(l, "text-indent")}>${fmtInline(l)}</p>`; }
+  }
+  fecha();
+  return html;
+}
+
+const previa = { ligada: true, id: 0 };
+function atualizarPrevia() {
+  if (previa.ligada) $("f-prev").innerHTML = renderTeoria($("f-content").value);
+}
+function agendarPrevia() {
+  clearTimeout(previa.id);
+  previa.id = setTimeout(atualizarPrevia, 120);
+}
+function alternarPrevia(ligar = !previa.ligada, guardar = true) {
+  previa.ligada = ligar;
+  $("f-split").classList.toggle("sem-previa", !ligar);
+  $("btn-previa").classList.toggle("on", ligar);
+  if (guardar) { try { localStorage.setItem("ar-previa", ligar ? "1" : "0"); } catch (e) {} }
+  atualizarPrevia();
 }
 
 /* ------------------------------------- ferramentas do editor de teoria */
@@ -1290,12 +1933,15 @@ function contarTeoria() {
 /* Usa execCommand em vez de mexer no .value: é a única forma de manter o
    Ctrl+Z nativo do textarea funcionando. Cai no .value se não houver suporte. */
 function substituir(ta, texto) {
-  if (!document.execCommand("insertText", false, texto)) {
+  // texto vazio é apagar a seleção: o insertText não faz isso em todo navegador
+  const ok = texto ? document.execCommand("insertText", false, texto)
+                   : ta.selectionStart === ta.selectionEnd || document.execCommand("delete");
+  if (!ok) {
     const i = ta.selectionStart, f = ta.selectionEnd;
     ta.value = ta.value.slice(0, i) + texto + ta.value.slice(f);
     ta.selectionStart = ta.selectionEnd = i + texto.length;
   }
-  contarTeoria();
+  contarTeoria(); marcarSujo();
 }
 
 function inserir(txt) {
@@ -1318,7 +1964,170 @@ function porLinha(fn) {
   ta.setSelectionRange(ini, ini + novo.length);
 }
 
-const RE_MARCA = /^(\s*)(?:#{1,6}\s+|[-•*]\s+|\d+[.)]\s+)/;
+/* Onde a seleção começa e termina (sem os espaços das pontas) e se ela já
+   está envolvida na marca m. */
+function marcaEm(m) {
+  const ta = $("f-content");
+  const v = ta.value, n = m.length;
+  let i = ta.selectionStart, f = ta.selectionEnd;
+  // espaço nas pontas fica de fora: "**palavra **" não é negrito
+  while (i < f && /\s/.test(v[i])) i++;
+  while (f > i && /\s/.test(v[f - 1])) f--;
+
+  let dentro;
+  if (m[0] === "*") {
+    // conta os asteriscos colados na seleção: 2 é negrito, 1 itálico, 3 os dois
+    let a = 0, b = 0;
+    while (v[i - 1 - a] === "*") a++;
+    while (v[f + b] === "*") b++;
+    const k = Math.min(a, b);
+    dentro = n === 2 ? k >= 2 : k % 2 === 1;
+  } else dentro = i >= n && v.slice(i - n, i) === m && v.slice(f, f + n) === m;
+  return { i, f, dentro };
+}
+
+/* Envolve a seleção na marca ("**", "*" ou "$"); se já estiver envolvida,
+   tira. Sem seleção, deixa o cursor entre as duas marcas. */
+function envolver(m) {
+  const ta = $("f-content");
+  ta.focus();
+  const v = ta.value, n = m.length;
+  const { i, f, dentro } = marcaEm(m);
+
+  if (dentro) {
+    ta.setSelectionRange(i - n, f + n);
+    substituir(ta, v.slice(i, f));
+    ta.setSelectionRange(i - n, f - n);
+  } else {
+    ta.setSelectionRange(i, f);
+    substituir(ta, m + v.slice(i, f) + m);
+    ta.setSelectionRange(i + n, f + n);
+  }
+}
+
+const RE_MARCA = /^(\s*)(?:#{1,6}\s+|[-•*]\s+|\d+[.)]\s+|>\s?)/;
+
+/* ------------------------------------------- teclado do editor de teoria */
+
+const RECUO = "    ";
+const RE_ITEM = /^\s*(?:[-•*]\s+|\d+[.)]\s+)/;
+
+/* Recua (ou desfaz o recuo de) todas as linhas tocadas pela seleção. Com o
+   cursor parado, ele continua no mesmo ponto do texto. */
+function recuarLinhas(volta) {
+  const ta = $("f-content");
+  ta.focus();
+  const v = ta.value, i = ta.selectionStart, f = ta.selectionEnd;
+  const ini = v.lastIndexOf("\n", i - 1) + 1;
+  let fim = v.indexOf("\n", f);
+  if (fim === -1) fim = v.length;
+  const linhas = v.slice(ini, fim).split("\n");
+  const novas = linhas.map(l => volta ? l.replace(/^(?: {1,4}|\t)/, "") : (l.trim() ? RECUO + l : l));
+  const novo = novas.join("\n");
+  if (novo === v.slice(ini, fim)) return;
+  ta.setSelectionRange(ini, fim);
+  substituir(ta, novo);
+  if (i === f) {
+    const p = Math.max(ini, i + novas[0].length - linhas[0].length);
+    ta.setSelectionRange(p, p);
+  } else ta.setSelectionRange(ini, ini + novo.length);
+}
+
+/* Tab no meio de um parágrafo insere o espaço onde o cursor está — no começo
+   da linha, é o recuo de parágrafo. Em item de lista, ou com várias linhas
+   selecionadas, move as linhas inteiras. */
+function tabular(volta) {
+  const ta = $("f-content"), v = ta.value;
+  const ini = v.lastIndexOf("\n", ta.selectionStart - 1) + 1;
+  let fim = v.indexOf("\n", ta.selectionEnd);
+  if (fim === -1) fim = v.length;
+  const trecho = v.slice(ini, fim);
+  if (!volta && !trecho.includes("\n") && !RE_ITEM.test(trecho)) return substituir(ta, RECUO);
+  recuarLinhas(volta);
+}
+
+/* Enter repete o que a linha tinha no começo: o recuo, o marcador da lista
+   (com o número seguinte) ou o ">" da citação. Num item vazio, sai da lista.
+   Devolve false quando não há nada a repetir, e o Enter nativo segue. */
+function continuarLinha() {
+  const ta = $("f-content"), v = ta.value, i = ta.selectionStart;
+  if (i !== ta.selectionEnd) return false;
+  const ini = v.lastIndexOf("\n", i - 1) + 1;
+  const antes = v.slice(ini, i);
+  const [tudo, esp, bul, num, sep, cit] =
+    antes.match(/^(\s*)(?:([-•*])\s+|(\d+)([.)])\s+|(>)\s?)?/);
+  const marcador = bul || num || cit;
+  if (!esp && !marcador) return false;
+  const noFim = i === v.length || v[i] === "\n";
+  if (marcador && noFim && !antes.slice(tudo.length).trim()) {
+    ta.setSelectionRange(ini, i);
+    substituir(ta, "");
+    return true;
+  }
+  substituir(ta, "\n" + esp + (bul ? bul + " " : num ? `${+num + 1}${sep} ` : cit ? "> " : ""));
+  return true;
+}
+
+/* Backspace dentro do recuo apaga um nível inteiro, não um espaço por vez. */
+function apagarRecuo() {
+  const ta = $("f-content"), v = ta.value, i = ta.selectionStart;
+  if (i !== ta.selectionEnd) return false;
+  const antes = v.slice(v.lastIndexOf("\n", i - 1) + 1, i);
+  if (antes.length < 2 || /[^ ]/.test(antes)) return false;
+  ta.setSelectionRange(i - ((antes.length - 1) % RECUO.length + 1), i);
+  substituir(ta, "");
+  return true;
+}
+
+/* Dois hífens seguidos viram travessão (—) na hora. Ficam como estão dentro
+   de `código` e de $fórmula$, onde "--" é o que a pessoa quer mesmo. Backspace
+   logo depois devolve os dois hífens; um terceiro hífen numa linha que só tem
+   o travessão vira "---", o separador de seção. */
+const trav = { pos: -1 };
+
+function emCodigoOuFormula(v, i) {
+  if ((v.slice(0, i).split("$$").length - 1) % 2) return true;      // bloco $$ aberto
+  const linha = v.slice(v.lastIndexOf("\n", i - 1) + 1, i);
+  let cod = false, form = false;
+  for (let k = 0; k < linha.length; k++) {
+    if (linha[k] === "`" && !form) cod = !cod;
+    else if (linha[k] === "$" && !cod) {
+      if (form) form = false;
+      // mesma regra da prévia: "$" só abre fórmula colado no que vem depois
+      else if (k + 1 < linha.length && !/\s/.test(linha[k + 1])) form = true;
+    }
+  }
+  return cod || form;
+}
+
+function travessao() {
+  const ta = $("f-content"), v = ta.value, i = ta.selectionStart;
+  if (i !== ta.selectionEnd) return false;
+  if (trav.pos === i && /^\s*—$/.test(v.slice(v.lastIndexOf("\n", i - 1) + 1, i))) {
+    ta.setSelectionRange(i - 1, i);
+    substituir(ta, "---");
+    trav.pos = -1;
+    return true;
+  }
+  if (v[i - 1] !== "-" || v[i - 2] === "-" || emCodigoOuFormula(v, i)) return false;
+  ta.setSelectionRange(i - 1, i);
+  substituir(ta, "—");
+  trav.pos = i;
+  return true;
+}
+
+function desfazerTravessao() {
+  const ta = $("f-content"), i = ta.selectionStart;
+  if (trav.pos !== i || i !== ta.selectionEnd || ta.value[i - 1] !== "—") return false;
+  ta.setSelectionRange(i - 1, i);
+  substituir(ta, "--");
+  trav.pos = -1;
+  return true;
+}
+
+/* com texto selecionado, digitar um destes envolve a seleção em vez de
+   apagá-la: selecionar e apertar "*" duas vezes dá negrito */
+const PARES = { "*":"*", "$":"$", "`":"`", "=":"=", "(":")", "[":"]", "{":"}", '"':'"' };
 
 function alternar(re, prefixo) {
   porLinha(l => {
@@ -1329,11 +2138,19 @@ function alternar(re, prefixo) {
 }
 
 const FERRAMENTAS = {
+  negrito: () => envolver("**"),
+  italico: () => envolver("*"),
+  formula: () => envolver("$"),
+  destaque: () => envolver("=="),
+  codigo:  () => envolver("`"),
+  citacao: () => alternar(/^(\s*)>\s?/, "> "),
+  desrecuar: () => recuarLinhas(true),
+  previa:  () => alternarPrevia(),
   titulo:  () => alternar(/^(\s*)#{1,6}\s+/, "## "),
   bullet:  () => alternar(/^(\s*)[-•*]\s+/, "- "),
   numero:  () => { let n = 0; porLinha(l => l.trim()
                      ? `${++n}. ${l.replace(RE_MARCA, "")}` : l); },
-  recuar:  () => porLinha(l => l.trim() ? "  " + l : l),
+  recuar:  () => recuarLinhas(false),
   limpar:  () => porLinha(l => l.replace(RE_MARCA, "$1")),
   seta:    () => inserir(" → "),
   hifen:   () => inserir(" – "),
@@ -1345,6 +2162,378 @@ document.querySelector(".tt-bar").addEventListener("click", e => {
   if (b && FERRAMENTAS[b.dataset.tt]) FERRAMENTAS[b.dataset.tt]();
 });
 
+/* ------------------------------------------------ caixa sobre a seleção */
+
+/* Mostra `el` colado ao texto selecionado em `o.alvo`. O editor diz onde a
+   seleção está na tela (o.retangulos), o que já está aplicado (o.ativos) e
+   como aplicar cada botão (o.aplicar); o resto — quando aparecer, onde ficar,
+   quando sumir — é igual para a teoria e para o resumo. */
+function criarBolha(el, o) {
+  // fora: escondida só porque a seleção rolou para fora da área — volta sozinha
+  let arrastando = false, quadro = 0, fora = false;
+
+  function esconder() { el.hidden = true; fora = false; }
+
+  function colocar(reusar) {
+    if (arrastando) return;
+    const rs = o.retangulos(reusar);
+    if (!rs || !rs.length) return esconder();
+    const a = o.alvo.getBoundingClientRect();
+    const pri = rs.reduce((x, r) => r.top < x.top ? r : x);
+    const ult = rs.reduce((x, r) => r.bottom > x.bottom ? r : x);
+    if (ult.bottom < a.top || pri.top > a.bottom) { esconder(); fora = true; return; }
+    fora = false;
+
+    el.hidden = false;
+    const on = o.ativos();
+    for (const b of el.querySelectorAll("[data-tt]")) b.classList.toggle("on", !!on[b.dataset.tt]);
+
+    // acima da primeira linha; sem espaço, abaixo da última; se a seleção
+    // toma a área inteira, presa no topo dela
+    const w = el.offsetWidth, h = el.offsetHeight, folga = 8;
+    let ref = pri, top = pri.top - h - folga;
+    if (top < a.top + 4) { ref = ult; top = ult.bottom + folga; }
+    if (top + h > a.bottom - 4) { ref = pri; top = a.top + 4; }
+    const meio = (Math.max(ref.left, a.left) + Math.min(ref.right, a.right)) / 2;
+    const left = Math.max(a.left + 4, Math.min(meio - w / 2, a.right - w - 4));
+    el.style.top = Math.round(top) + "px";
+    el.style.left = Math.round(left) + "px";
+  }
+
+  const atualizar = () => colocar(false);
+
+  // sem isto o clique tiraria o foco do editor e a seleção se perderia
+  el.addEventListener("mousedown", e => e.preventDefault());
+  el.addEventListener("click", e => {
+    const b = e.target.closest("[data-tt]");
+    if (!b) return;
+    o.aplicar(b.dataset.tt);
+    atualizar();
+  });
+
+  // enquanto o mouse arrasta a caixa fica fora do caminho; aparece ao soltar
+  o.alvo.addEventListener("mousedown", () => { arrastando = true; esconder(); });
+  document.addEventListener("mouseup", () => {
+    if (!arrastando) return;
+    arrastando = false;
+    setTimeout(atualizar, 0);      // clicar numa seleção só a desfaz depois do mouseup
+  });
+  o.alvo.addEventListener("keydown", e => { if (e.key === "Escape") esconder(); });
+  o.alvo.addEventListener("keyup", e => { if (e.key !== "Escape") atualizar(); });
+  o.alvo.addEventListener("input", atualizar);
+  o.alvo.addEventListener("focus", atualizar);
+  o.alvo.addEventListener("blur", esconder);
+  o.alvo.addEventListener("scroll", () => {
+    if ((el.hidden && !fora) || quadro) return;
+    quadro = requestAnimationFrame(() => { quadro = 0; colocar(true); });
+  });
+  window.addEventListener("resize", () => { if (!el.hidden) atualizar(); });
+}
+
+/* Um textarea não diz onde o texto selecionado está na tela. O espelho é uma
+   div invisível com a mesma largura, fonte e quebra de linha: o mesmo texto
+   dentro dela cai nas mesmas posições, e lá dá para medir. */
+const selTeoria = { espelho: null, linhas: null };
+
+/* Mede várias faixas [início, fim) do texto de uma vez: para cada uma, os
+   retângulos de cada linha que ela ocupa, relativos ao canto do conteúdo. */
+function medirTrechos(ta, faixas) {
+  let m = selTeoria.espelho;
+  if (!m) {
+    m = selTeoria.espelho = document.createElement("div");
+    m.setAttribute("aria-hidden", "true");
+    document.body.appendChild(m);
+  }
+  const cs = getComputedStyle(ta);
+  m.style.cssText = "position:fixed; top:0; left:-99999px; visibility:hidden; pointer-events:none;"
+    + " box-sizing:border-box; border:0; margin:0; white-space:pre-wrap; overflow-wrap:break-word;";
+  for (const p of ["fontFamily", "fontSize", "fontWeight", "fontStyle", "fontVariant", "fontFeatureSettings",
+                   "fontKerning", "lineHeight", "letterSpacing", "wordSpacing", "tabSize", "textIndent",
+                   "textTransform", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft"])
+    m.style[p] = cs[p];
+  m.style.width = ta.clientWidth + "px";
+
+  const v = ta.value, nos = [], trechos = [];
+  let pos = 0;
+  for (const [i, f] of faixas) {
+    const t = document.createElement("span");
+    t.textContent = v.slice(i, f);
+    nos.push(v.slice(pos, i), t);
+    trechos.push(t);
+    pos = f;
+  }
+  nos.push(v.slice(pos) || " ");
+  m.replaceChildren(...nos);
+  const base = m.getBoundingClientRect();
+  const saida = trechos.map(t => [...t.getClientRects()].filter(r => r.width > 0.5).map(r => ({
+    top: r.top - base.top, bottom: r.bottom - base.top,
+    left: r.left - base.left, right: r.right - base.left })));
+  m.replaceChildren();
+  return saida;
+}
+
+const medirSelecao = (ta, i, f) => medirTrechos(ta, [[i, f]])[0];
+
+criarBolha($("bolha-teoria"), {
+  alvo: $("f-content"),
+  retangulos(reusar) {
+    const ta = $("f-content");
+    if (ta.readOnly || document.activeElement !== ta) return null;
+    const i = ta.selectionStart, f = ta.selectionEnd;
+    if (i === f || !ta.value.slice(i, f).trim()) return null;
+    // na rolagem o texto não mudou: só desloca o que já foi medido
+    if (!reusar || !selTeoria.linhas) selTeoria.linhas = medirSelecao(ta, i, f);
+    const b = ta.getBoundingClientRect();
+    const dx = b.left + ta.clientLeft - ta.scrollLeft, dy = b.top + ta.clientTop - ta.scrollTop;
+    return selTeoria.linhas.map(r => ({
+      top: r.top + dy, bottom: r.bottom + dy, left: r.left + dx, right: r.right + dx }));
+  },
+  ativos() {
+    const ta = $("f-content"), v = ta.value;
+    const linha = v.slice(v.lastIndexOf("\n", ta.selectionStart - 1) + 1).split("\n", 1)[0];
+    return {
+      negrito: marcaEm("**").dentro, italico: marcaEm("*").dentro, destaque: marcaEm("==").dentro,
+      codigo: marcaEm("`").dentro, formula: marcaEm("$").dentro,
+      titulo: /^\s*#{1,6}\s+/.test(linha), bullet: /^\s*[-•*]\s+/.test(linha),
+      citacao: /^\s*>/.test(linha) };
+  },
+  aplicar(nome) { FERRAMENTAS[nome](); },
+});
+
+criarBolha($("bolha-resumo"), {
+  alvo: quill.root,
+  retangulos() {
+    if (!quill.isEnabled() || !quill.hasFocus()) return null;
+    const r = quill.getSelection();
+    if (!r || !r.length || !quill.getText(r.index, r.length).trim()) return null;
+    const s = window.getSelection();
+    if (!s.rangeCount) return null;
+    return [...s.getRangeAt(0).getClientRects()].filter(x => x.width > 0.5);
+  },
+  ativos() {
+    const f = quill.getFormat();
+    return { bold: f.bold, italic: f.italic, underline: f.underline, strike: f.strike,
+             header: f.header === 2, bullet: f.list === "bullet", blockquote: f.blockquote };
+  },
+  aplicar(nome) {
+    const f = quill.getFormat();
+    if (nome === "header") quill.format("header", f.header === 2 ? false : 2, "user");
+    else if (nome === "bullet") quill.format("list", f.list === "bullet" ? false : "bullet", "user");
+    else quill.format(nome, !f[nome], "user");
+  },
+});
+
+/* ------------------------------------------------------------- busca */
+
+/* Procura em todas as teorias (no servidor, sem diferenciar maiúsculas nem
+   acentos). Com texto no campo, os resultados tomam o lugar da árvore;
+   apagar o campo, ou Esc, devolve a árvore. */
+const busca = { id: 0, seq: 0 };
+
+async function buscar() {
+  const q = $("busca").value.trim(), seq = ++busca.seq;
+  const res = $("busca-res"), normal = $("rail-normal");
+  if (q.length < 2) { res.hidden = true; res.innerHTML = ""; normal.hidden = false; return; }
+  salvarTeoria(); await auto.fila;                // o que acabou de ser digitado também é procurado
+  let d = null;
+  try { const r = await fetch("/search?q=" + encodeURIComponent(q)); if (r.ok) d = await r.json(); } catch (e) {}
+  if (seq !== busca.seq) return;                  // já tem uma busca mais nova a caminho
+  const rs = (d && d.results) || [];
+  normal.hidden = true; res.hidden = false;
+  res.innerHTML = `<div class="label">Resultados <span>${rs.length ? d.total || rs.length : 0}</span></div>` + (rs.length
+    ? rs.map(r => `<div class="achado" data-d="${esc(r.discipline)}" data-t="${esc(r.topic)}">
+        <div class="achado-d">${esc(r.discipline)}</div>
+        <button class="topic" data-n="${r.count ? 0 : -1}" title="${esc(r.discipline)} / ${esc(r.topic)}">
+          <span class="nome">${esc(r.topic)}</span>${r.count ? `<span class="n">${r.count}</span>` : ""}</button>
+        ${r.hits.map(h => `<button class="trecho" data-n="${h.n}">${esc(h.before)}<mark>${esc(h.match)}</mark>${esc(h.after)}</button>`).join("")}
+      </div>`).join("")
+    : `<div class="fila-nada">nada encontrado</div>`);
+}
+
+/* Abre o tópico na teoria com a n-ésima ocorrência selecionada. A posição é
+   reencontrada aqui, no texto que está no editor, com a mesma normalização do
+   servidor — um número de caractere vindo de lá não sobreviveria a uma edição. */
+async function abrirAchado(disc, topic, n) {
+  const alvo = normalizar($("busca").value).texto.trim();
+  selecionar(disc, topic);
+  trocarAba("pane-theory");
+  if (n < 0 || !alvo) return;
+  const ta = $("f-content");
+  for (let k = 0; k < 150 && (ta.readOnly || $("f-topic").value !== topic || $("f-disc").value !== disc); k++)
+    await new Promise(r => setTimeout(r, 30));
+  if (ta.readOnly) return;
+  const H = normalizar(ta.value);
+  let i = -1, de = 0;
+  for (let k = 0; k <= n; k++) {
+    i = H.texto.indexOf(alvo, de);
+    if (i < 0) return;
+    de = i + alvo.length;
+  }
+  const ini = H.mapa[i], fim = H.mapa[i + alvo.length - 1] + 1;
+  ta.focus();
+  ta.setSelectionRange(ini, fim);
+  const linhas = medirSelecao(ta, ini, fim);
+  if (linhas.length) ta.scrollTop = Math.max(0, linhas[0].top - ta.clientHeight / 3);
+}
+
+$("busca").addEventListener("input", () => { clearTimeout(busca.id); busca.id = setTimeout(buscar, 180); });
+$("busca").addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  e.stopPropagation();
+  $("busca").value = ""; buscar(); $("busca").blur();
+});
+$("busca-res").addEventListener("click", e => {
+  const b = e.target.closest("[data-n]");
+  if (!b) return;
+  const a = b.closest(".achado");
+  abrirAchado(a.dataset.d, a.dataset.t, +b.dataset.n);
+});
+
+/* ------------------------------------------------------- importação */
+
+/* O par do exportar: um .zip com <disciplina>/<tópico>.txt (e as imagens).
+   Tópico que já existe com outro texto não é trocado sem perguntar. */
+async function importarZip(arq, sobrescrever = false, antes = 0) {
+  salvarTeoria(); await auto.fila;
+  toast("importando…");
+  let d;
+  try {
+    const r = await fetch(`/import/zip?name=${encodeURIComponent(arq.name.replace(/\.zip$/i, ""))}`
+        + `&overwrite=${sobrescrever ? 1 : 0}`,
+      { method: "POST", headers: { "Content-Type": "application/zip" }, body: arq });
+    d = await r.json().catch(() => ({}));
+    if (!r.ok) return toast(typeof d.detail === "string" ? d.detail : `Falha ao importar (HTTP ${r.status}).`);
+  } catch (e) { return toast("Falha ao importar."); }
+
+  const novos = antes + d.imported.length;
+  if (d.conflicts.length && !sobrescrever) {
+    await carregarArvore();
+    const lista = d.conflicts.slice(0, 8).map(([a, b]) => `• ${a} / ${b}`).join("\n")
+      + (d.conflicts.length > 8 ? `\n… e mais ${d.conflicts.length - 8}` : "");
+    if (confirm(`${d.conflicts.length} tópico(s) do ZIP já existem aqui com outro texto:\n\n${lista}`
+        + `\n\nSubstituir pelo texto do ZIP?`)) return importarZip(arq, true, novos);
+  }
+  await carregarArvore();
+  // o tópico aberto foi trocado por baixo: o editor da teoria precisa do texto novo
+  if (d.replaced.some(([a, b]) => a === state.disc && b === state.topic)
+      && $("f-topic").value.trim() === state.topic) carregarTeoria();
+  if (abaAtiva() === "pane-stats") carregarStats();
+  const partes = [];
+  if (novos) partes.push(`${novos} importado${novos === 1 ? "" : "s"}`);
+  if (d.replaced.length) partes.push(`${d.replaced.length} substituído${d.replaced.length === 1 ? "" : "s"}`);
+  if (d.conflicts.length) partes.push(`${d.conflicts.length} mantido${d.conflicts.length === 1 ? "" : "s"}`);
+  toast(partes.join(", ") || "nada novo no ZIP");
+}
+
+$("imp-zip").addEventListener("change", e => {
+  const arq = e.target.files[0];
+  e.target.value = "";                            // escolher o mesmo arquivo de novo tem que disparar
+  if (arq) importarZip(arq);
+});
+
+/* ------------------------------------------------------- exportação */
+
+function abrirExportar(disc) {
+  $("modal").innerHTML = `
+    <div class="overlay" data-fechar="1"><div class="modal pequeno">
+      <header>
+        <h2>Exportar</h2>
+        <span class="meta" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(disc)}</span>
+        <span class="spacer"></span>
+        <button class="icon-btn" data-fechar="1" title="Fechar">✕</button>
+      </header>
+      <div class="corpo duas" data-disc="${esc(disc)}">
+        <button class="btn btn-outline" data-exportar="pdf" title="Um documento com todos os tópicos">PDF</button>
+        <button class="btn btn-outline" data-exportar="zip" title="Os textos e as imagens">ZIP</button>
+      </div>
+    </div></div>`;
+}
+
+$("modal").addEventListener("click", e => {
+  const b = e.target.closest("[data-exportar]");
+  if (!b) return;
+  const disc = b.closest("[data-disc]").dataset.disc;
+  fecharModal();
+  b.dataset.exportar === "pdf" ? exportarPDF(disc) : exportarZip(disc);
+});
+
+/* o que estiver sendo digitado entra na exportação: salva antes */
+async function salvarAntesDeExportar() { salvarTeoria(); await auto.fila; }
+
+async function exportarZip(disc) {
+  await salvarAntesDeExportar();
+  try {
+    const r = await fetch("/export/zip?discipline=" + encodeURIComponent(disc));
+    if (!r.ok) return toast(`Falha ao exportar (HTTP ${r.status}).`);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(await r.blob());
+    a.download = disc + ".zip";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  } catch (e) { toast("Falha ao exportar."); }
+}
+
+/* O PDF é a própria prévia da teoria, tópico por tópico, entregue à impressão
+   do navegador — é ele que sabe desenhar fórmula e imagem. */
+async function exportarPDF(disc) {
+  await salvarAntesDeExportar();
+  const d = state.disciplinas.find(x => x.name === disc);
+  if (!d || !d.topics.length) return toast("sem tópicos");
+  toast("montando PDF…");
+  const textos = await Promise.all(d.topics.map(t => textoDaTeoria(disc, t)));
+
+  const alvo = $("impressao");
+  alvo.classList.add("medindo");
+  const indice = d.topics.length > 1 ? `
+    <section class="imp-indice"><h1>${esc(disc)}</h1>
+      <ol>${d.topics.map((t, i) => `<li><a href="#imp-${i}">${esc(t)}</a></li>`).join("")}</ol>
+    </section>` : "";
+  alvo.innerHTML = indice + d.topics.map((t, i) => `
+    <section class="imp-topico" id="imp-${i}" data-d="${esc(disc)}" data-t="${esc(t)}">
+      <div class="imp-disc">${esc(disc)}</div>
+      <h1>${esc(t)}</h1>
+      <div class="tt-prev">${textos[i].trim() ? renderTeoria(textos[i], disc, t)
+                                              : `<p class="imp-vazio">sem texto</p>`}</div>
+    </section>`).join("");
+
+  // papel não tem mouse: a imagem ligada a um trecho sai como figura logo
+  // depois do parágrafo dele, com o trecho de legenda
+  for (const sec of alvo.querySelectorAll(".imp-topico")) {
+    const fim = new Map();                        // bloco → última figura posta depois dele
+    for (const l of sec.querySelectorAll(".lig")) {
+      const b = l.closest("p, li, blockquote, h2, h3, h4") || l;
+      for (const nome of nomesDaLista(l.dataset.imgs)) {
+        const fig = document.createElement("figure");
+        fig.className = "imp-fig";
+        fig.innerHTML = `<img src="/image${esc(qsImg(nome, sec.dataset.d, sec.dataset.t))}" alt="">
+          <figcaption>${esc(l.textContent)}</figcaption>`;
+        if (b.tagName === "LI") b.appendChild(fig);
+        else { (fim.get(b) || b).after(fig); fim.set(b, fig); }
+      }
+    }
+  }
+
+  // a impressão não espera imagem: todas carregadas antes; a que não existe
+  // mais sai do documento em vez de virar um quadro quebrado
+  await Promise.all([...alvo.querySelectorAll("img")].map(img => {
+    img.loading = "eager";
+    return img.decode().catch(() => (img.closest("figure") || img).remove());
+  }));
+  alvo.offsetHeight;                            // força o desenho: é ele que pede as fontes
+  try { await document.fonts.ready; } catch (e) {}
+  alvo.classList.remove("medindo");
+
+  const titulo = document.title;
+  document.title = disc;                        // vira o nome sugerido do arquivo
+  document.body.classList.add("imprimindo");
+  window.addEventListener("afterprint", () => {
+    document.body.classList.remove("imprimindo");
+    document.title = titulo;
+    alvo.innerHTML = "";
+  }, { once: true });
+  window.print();
+}
+
 /* ------------------------------------------- imagens coladas na teoria */
 
 /* O textarea guarda texto e nada mais, então o Ctrl+V de um print é
@@ -1354,25 +2543,87 @@ document.querySelector(".tt-bar").addEventListener("click", e => {
 
 const TIPOS_IMG = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
-function qsImg(nome) {
-  const q = `?discipline=${encodeURIComponent($("f-disc").value.trim())}`
-          + `&topic=${encodeURIComponent($("f-topic").value.trim())}`;
+function qsImg(nome, disc = $("f-disc").value.trim(), topic = $("f-topic").value.trim()) {
+  const q = `?discipline=${encodeURIComponent(disc)}`
+          + `&topic=${encodeURIComponent(topic)}`;
   return nome ? q + `&name=${encodeURIComponent(nome)}` : q;
 }
 
-async function enviarImagem(file) {
+/* Onde a imagem colada vai se ligar. Com texto selecionado, é a seleção; sem
+   seleção, a linha do cursor. De cada linha entra só o texto: recuo, marcador
+   de lista ou título e espaços das pontas ficam fora dos colchetes. Trecho
+   que já tem imagem ganha mais uma na mesma ligação. Devolve a troca a fazer
+   ({a, b, novo}), quantos trechos foram ligados (n) e quantos não puderam. */
+function planoDeLigacao(v, ini, fim, nome) {
+  const a = v.lastIndexOf("\n", ini - 1) + 1;
+  let b = v.indexOf("\n", fim > ini ? fim - 1 : fim);
+  if (b < 0) b = v.length;
+  let pos = a, n = 0, ruins = 0;
+  const linhas = v.slice(a, b).split("\n").map(l => {
+    const l0 = pos;
+    pos += l.length + 1;
+    let s = ini === fim ? 0 : Math.max(ini, l0) - l0;
+    let e = ini === fim ? l.length : Math.min(fim, l0 + l.length) - l0;
+    s = Math.max(s, (l.match(RE_MARCA) || l.match(/^\s*/))[0].length);
+    while (s < e && /\s/.test(l[s])) s++;
+    while (e > s && /\s/.test(l[e - 1])) e--;
+    if (s >= e) return l;
+    for (const m of l.matchAll(RE_LIG)) {
+      const mi = m.index, mf = mi + m[0].length;
+      if (s >= mf || e <= mi) continue;
+      const nomes = nomesDaLista(m[2]);
+      if (!nomes.includes(nome)) nomes.push(nome);
+      n++;
+      return l.slice(0, mi) + `[${m[1]}](imagem:${nomes.join(",")})` + l.slice(mf);
+    }
+    const trecho = l.slice(s, e);
+    // colchete quebraria a marcação; dentro de código ou fórmula ela viraria conteúdo
+    if (/[\[\]]/.test(trecho) || emCodigoOuFormula(v, l0 + s)) { ruins++; return l; }
+    n++;
+    return l.slice(0, s) + `[${trecho}](imagem:${nome})` + l.slice(e);
+  });
+  return { a, b, novo: linhas.join("\n"), n, ruins };
+}
+
+/* O alvo é fotografado na hora do Ctrl+V: o envio demora, e até ele voltar a
+   seleção pode ter mudado. */
+function alvoDaImagem() {
+  const ta = $("f-content");
+  return { ini: ta.selectionStart, fim: ta.selectionEnd, v: ta.value };
+}
+
+async function enviarImagem(file, alvo = alvoDaImagem()) {
   if (!$("f-disc").value.trim() || !$("f-topic").value.trim())
     return toast("Preencha disciplina e tópico antes de colar uma imagem.");
+  // imagem solta no meio do texto não entra mais: sem trecho a que ligar, nem sobe
+  if (!planoDeLigacao(alvo.v, alvo.ini, alvo.fim, "x").n)
+    return toast(alvo.ini !== alvo.fim
+      ? "Esse trecho não aceita imagem: tem colchetes, código ou fórmula."
+      : "Selecione um trecho (ou deixe o cursor numa linha com texto) para ligar a imagem.");
   toast("enviando imagem...");
   try {
     const r = await fetch("/image" + qsImg(), {
       method: "POST", headers: { "Content-Type": file.type }, body: file });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) return toast(d.detail || `Falha ao enviar (HTTP ${r.status}).`);
-    inserir(`\n[imagem: ${d.name}]\n`);
+    const ligou = ligarImagem(d.name, alvo);
     await carregarImagens();
-    toast(d.existed ? "essa imagem já estava aqui" : "imagem salva — lembre de salvar a teoria");
+    toast(ligou ? "imagem ligada ao trecho" : "imagem salva sem trecho: selecione um e cole de novo");
   } catch (e) { toast("Falha ao enviar a imagem."); }
+}
+
+/* Liga a imagem ao trecho. Devolve false se não houver mais a que ligar (o
+   texto foi apagado enquanto ela subia): a imagem fica só na tira de baixo. */
+function ligarImagem(nome, alvo) {
+  const ta = $("f-content");
+  // o texto mudou enquanto a imagem subia: vale a seleção de agora
+  const { ini, fim } = ta.value === alvo.v ? alvo : { ini: ta.selectionStart, fim: ta.selectionEnd };
+  const p = planoDeLigacao(ta.value, ini, fim, nome);
+  if (!p.n) return false;
+  ta.focus();
+  ta.setSelectionRange(p.a, p.b);
+  substituir(ta, p.novo);
+  return true;
 }
 
 async function carregarImagens() {
@@ -1389,13 +2640,20 @@ async function carregarImagens() {
     </div>`).join("");
 }
 
-/* Some com o marcador junto com o arquivo: deixar um "[imagem: x.png]"
-   apontando para nada só confunde na hora de reler a teoria. */
+/* Some com a referência junto com o arquivo: um marcador ou uma ligação
+   apontando para nada só confunde na hora de reler a teoria. O trecho ligado
+   continua no texto, sem os colchetes — ou com as outras imagens que tiver. */
 function removerMarcador(nome) {
   const ta = $("f-content");
   const escapado = nome.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const novo = ta.value.replace(
-    new RegExp(`\\n?[ \\t]*\\[imagem:\\s*${escapado}\\s*\\][ \\t]*`, "g"), "");
+    new RegExp(`\\n?[ \\t]*\\[imagem:\\s*${escapado}\\s*\\][ \\t]*`, "g"), "")
+    .replace(RE_LIG, (tudo, dentro, lista) => {
+      const nomes = nomesDaLista(lista);
+      if (!nomes.includes(nome)) return tudo;
+      const resto = nomes.filter(x => x !== nome);
+      return resto.length ? `[${dentro}](imagem:${resto.join(",")})` : dentro;
+    });
   if (novo === ta.value) return;
   ta.focus(); ta.select();
   substituir(ta, novo);
@@ -1405,20 +2663,16 @@ $("f-imgs").addEventListener("click", async e => {
   const del = e.target.closest("[data-del]");
   if (del) {
     const n = del.dataset.del;
-    if (!confirm("Remover esta imagem?\n\nO marcador dela sai do texto junto.")) return;
+    if (!confirm("Remover esta imagem?\n\nEla sai do texto junto; o trecho ligado a ela continua.")) return;
     const r = await fetch("/image" + qsImg(n), { method: "DELETE" });
     if (!r.ok) return toast(`Falha ao remover (HTTP ${r.status}).`);
     removerMarcador(n);
     await carregarImagens();
-    toast("imagem removida — lembre de salvar a teoria");
+    toast("imagem removida");
     return;
   }
   const ver = e.target.closest("[data-ver]");
-  if (ver) $("modal").innerHTML = `
-    <div class="overlay" data-fechar="1"><div class="modal">
-      <header><h2>Imagem</h2><span class="meta">${esc(ver.dataset.ver)}</span></header>
-      <div class="corpo lightbox"><img src="/image${esc(qsImg(ver.dataset.ver))}" alt=""></div>
-    </div></div>`;
+  if (ver) abrirImagem(ver.dataset.ver, $("f-disc").value.trim(), $("f-topic").value.trim());
 });
 
 $("f-content").addEventListener("paste", e => {
@@ -1440,21 +2694,286 @@ $("f-content").addEventListener("drop", e => {
   enviarImagem(f);
 });
 
+/* ------------------------------------------- imagens ligadas a um trecho */
+
+/* A janela que mostra a(s) imagem(ns) de um trecho. Abre perto dele, do lado
+   que tiver mais espaço, e fica enquanto o mouse estiver no trecho ou nela —
+   dá para ir até a imagem e clicar para ampliar. */
+const pop = { entra: 0, sai: 0, ret: null, dono: null, realces: [] };
+
+function colocarPop() {
+  const el = $("lig-pop"), r = pop.ret, m = 8;
+  if (el.hidden || !r) return;
+  const abaixo = innerHeight - r.bottom - 2 * m, acima = r.top - 2 * m;
+  const embaixo = abaixo >= 380 || abaixo >= acima;
+  const sala = Math.max(140, embaixo ? abaixo : acima);
+  el.style.maxHeight = sala + "px";
+  el.style.setProperty("--alt", (sala - 14) + "px");
+  const w = el.offsetWidth, h = el.offsetHeight;
+  el.style.left = Math.round(Math.max(m, Math.min((r.left + r.right) / 2 - w / 2, innerWidth - w - m))) + "px";
+  el.style.top = Math.round(embaixo ? r.bottom + 6 : Math.max(m, r.top - 6 - h)) + "px";
+}
+
+function mostrarImagens(nomes, ret, disc, topic, dono) {
+  clearTimeout(pop.sai);
+  const el = $("lig-pop");
+  if (pop.dono && pop.dono !== dono && pop.dono.classList) pop.dono.classList.remove("on");
+  pop.ret = ret; pop.dono = dono;
+  if (dono && dono.classList) dono.classList.add("on");
+  el.innerHTML = nomes.map(n =>
+    `<img src="/image${esc(qsImg(n, disc, topic))}" alt="" data-nome="${esc(n)}">`).join("");
+  el.dataset.d = disc; el.dataset.t = topic;
+  el.classList.toggle("varias", nomes.length > 1);
+  // o tamanho só existe depois que a imagem chega; a que não existe mais sai
+  for (const img of el.querySelectorAll("img")) {
+    img.addEventListener("load", colocarPop);
+    img.addEventListener("error", () => { img.remove(); if (!el.children.length) sumirImagens(); else colocarPop(); });
+  }
+  el.hidden = false;
+  colocarPop();
+}
+
+function tirarRealce() {
+  pop.realces.forEach(r => r.remove());
+  pop.realces = [];
+}
+
+function sumirImagens() {
+  clearTimeout(pop.entra); clearTimeout(pop.sai);
+  if (pop.dono && pop.dono.classList) pop.dono.classList.remove("on");
+  pop.dono = null; pop.ret = null;
+  tirarRealce();
+  ligTa.atual = -1;
+  $("lig-pop").hidden = true;
+}
+
+function agendarSumir() {
+  clearTimeout(pop.entra); clearTimeout(pop.sai);
+  pop.sai = setTimeout(sumirImagens, 220);
+}
+
+function abrirImagem(nome, disc, topic) {
+  sumirImagens();
+  $("modal").innerHTML = `
+    <div class="overlay" data-fechar="1"><div class="modal grande">
+      <header><h2>Imagem</h2><span class="meta">${esc(nome)}</span><span class="spacer"></span>
+        <button class="icon-btn" data-fechar="1" title="Fechar">✕</button></header>
+      <div class="corpo lightbox"><img src="/image${esc(qsImg(nome, disc, topic))}" alt=""
+        title="Clique para ver no tamanho real"></div>
+    </div></div>`;
+}
+
+$("lig-pop").addEventListener("mouseenter", () => clearTimeout(pop.sai));
+$("lig-pop").addEventListener("mouseleave", agendarSumir);
+$("lig-pop").addEventListener("click", e => {
+  const el = $("lig-pop"), img = e.target.closest("img") || el.querySelector("img");
+  if (img) abrirImagem(img.dataset.nome, el.dataset.d, el.dataset.t);
+});
+
+/* Trecho com imagem em texto já desenhado: a prévia da teoria e os trechos
+   "na teoria" do painel de análise. Na prévia as imagens são do tópico que
+   está no formulário; fora dela, do tópico aberto. */
+const origemDaLig = l => l.closest("#f-prev")
+  ? [$("f-disc").value.trim(), $("f-topic").value.trim()] : [state.disc, state.topic];
+
+document.addEventListener("mouseover", e => {
+  const l = e.target.closest && e.target.closest(".lig");
+  if (!l || l.closest("#impressao")) return;
+  clearTimeout(pop.sai); clearTimeout(pop.entra);
+  if (pop.dono === l) return;
+  pop.entra = setTimeout(() => {
+    if (!l.isConnected) return;
+    const [d, t] = origemDaLig(l);
+    mostrarImagens(nomesDaLista(l.dataset.imgs), l.getBoundingClientRect(), d, t, l);
+  }, 120);
+});
+document.addEventListener("mouseout", e => {
+  const l = e.target.closest && e.target.closest(".lig");
+  if (l && !l.contains(e.relatedTarget)) agendarSumir();
+});
+// na captura: dentro do painel de análise o clique também marcaria o conceito
+document.addEventListener("click", e => {
+  const l = e.target.closest && e.target.closest(".lig");
+  if (!l || l.closest("#impressao")) return;
+  e.stopPropagation();
+  const [d, t] = origemDaLig(l);
+  abrirImagem(nomesDaLista(l.dataset.imgs)[0], d, t);
+}, true);
+window.addEventListener("resize", sumirImagens);
+// rolar qualquer área tira o trecho de baixo da janela (rolar a própria janela, não)
+document.addEventListener("scroll", e => {
+  if (!$("lig-pop").hidden && e.target !== $("lig-pop")) sumirImagens();
+}, true);
+
+/* No texto cru o trecho é "[trecho](imagem:x.png)" dentro de um textarea, que
+   não tem elementos para o mouse tocar. As posições saem do espelho (o mesmo
+   da caixa de seleção), medidas uma vez por versão do texto; o destaque é uma
+   faixa translúcida posta por cima. */
+const ligTa = { v: null, w: 0, itens: [], quadro: 0, atual: -1 };
+
+function ligacoesDoTexto(ta) {
+  if (ligTa.v !== ta.value || ligTa.w !== ta.clientWidth) {
+    ligTa.v = ta.value; ligTa.w = ta.clientWidth;
+    const ms = [...ta.value.matchAll(RE_LIG)];
+    const rs = ms.length ? medirTrechos(ta, ms.map(m => [m.index, m.index + m[0].length])) : [];
+    ligTa.itens = ms.map((m, k) => ({ nomes: nomesDaLista(m[2]), rets: rs[k] }));
+  }
+  return ligTa.itens;
+}
+
+function sobreOTexto(x, y) {
+  const ta = $("f-content");
+  if (ta.readOnly) return;
+  const itens = ligacoesDoTexto(ta);
+  if (!itens.length) return;
+  const b = ta.getBoundingClientRect();
+  const dx = b.left + ta.clientLeft - ta.scrollLeft, dy = b.top + ta.clientTop - ta.scrollTop;
+  const k = itens.findIndex(it => it.rets.some(r =>
+    x - dx >= r.left && x - dx <= r.right && y - dy >= r.top && y - dy <= r.bottom));
+  if (k === ligTa.atual) { if (k >= 0) clearTimeout(pop.sai); return; }
+  ligTa.atual = k;
+  if (k < 0) return agendarSumir();
+  clearTimeout(pop.sai); clearTimeout(pop.entra);
+  pop.entra = setTimeout(() => {
+    if (ligTa.atual !== k) return;
+    // só as linhas do trecho que estão à vista, cortadas na borda do editor
+    const vis = itens[k].rets.map(r => ({
+      left: r.left + dx, right: r.right + dx,
+      top: Math.max(r.top + dy, b.top), bottom: Math.min(r.bottom + dy, b.bottom) }))
+      .filter(r => r.bottom - r.top > 2);
+    if (!vis.length) return;
+    tirarRealce();
+    for (const r of vis) {
+      const f = document.createElement("div");
+      f.className = "lig-realce";
+      f.style.cssText = `left:${r.left - 1}px; top:${r.top - 1}px; width:${r.right - r.left + 2}px; height:${r.bottom - r.top + 2}px`;
+      document.body.appendChild(f);
+      pop.realces.push(f);
+    }
+    mostrarImagens(itens[k].nomes, {
+      left: Math.min(...vis.map(r => r.left)), right: Math.max(...vis.map(r => r.right)),
+      top: Math.min(...vis.map(r => r.top)), bottom: Math.max(...vis.map(r => r.bottom)),
+    }, $("f-disc").value.trim(), $("f-topic").value.trim(), ligTa);
+  }, 120);
+}
+
+$("f-content").addEventListener("mousemove", e => {
+  if (e.buttons || ligTa.quadro) return;          // arrastando para selecionar: não atrapalha
+  const x = e.clientX, y = e.clientY;
+  ligTa.quadro = requestAnimationFrame(() => { ligTa.quadro = 0; sobreOTexto(x, y); });
+});
+$("f-content").addEventListener("mouseleave", () => { ligTa.atual = -1; agendarSumir(); });
+$("f-content").addEventListener("mousedown", sumirImagens);
+$("f-content").addEventListener("input", sumirImagens);
+
 document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => trocarAba(t.dataset.pane)));
-$("f-content").addEventListener("input", contarTeoria);
+$("f-content").addEventListener("input", () => { contarTeoria(); marcarSujo(); });
+/* O Tab fica preso no texto para recuar; Esc seguido de Tab devolve o Tab ao
+   navegador, para quem navega pelo teclado conseguir sair do campo. */
+let soltaTab = false;
+$("f-content").addEventListener("keydown", e => {
+  if (e.isComposing) return;
+  const ta = e.target;
+  // desfazer o travessão só vale para a tecla seguinte à que o criou
+  if (e.key !== "Backspace" && e.key !== "-") trav.pos = -1;
+  if (e.key === "Escape") { soltaTab = true; return; }
+  if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (soltaTab) { soltaTab = false; return; }
+    e.preventDefault(); tabular(e.shiftKey);
+    return;
+  }
+  if (!["Shift", "Control", "Alt", "Meta"].includes(e.key)) soltaTab = false;
+  if (e.altKey) return;
+  if (e.ctrlKey || e.metaKey) {
+    const f = !e.shiftKey && { b: "negrito", i: "italico", m: "formula" }[e.key.toLowerCase()];
+    if (f) { e.preventDefault(); FERRAMENTAS[f](); }
+    return;
+  }
+  if (e.key === "Enter" && !e.shiftKey) { if (continuarLinha()) e.preventDefault(); }
+  else if (e.key === "Backspace") { if (desfazerTravessao() || apagarRecuo()) e.preventDefault(); }
+  else if (e.key === "-") { if (travessao()) e.preventDefault(); }
+  else if (PARES[e.key] && ta.selectionStart !== ta.selectionEnd) {
+    e.preventDefault();
+    const i = ta.selectionStart, f = ta.selectionEnd;
+    substituir(ta, e.key + ta.value.slice(i, f) + PARES[e.key]);
+    ta.setSelectionRange(i + 1, f + 1);
+  }
+});
+$("f-content").addEventListener("mousedown", () => { trav.pos = -1; });
+/* a prévia acompanha a rolagem do texto, na mesma proporção */
+$("f-content").addEventListener("scroll", () => {
+  const ta = $("f-content"), pv = $("f-prev");
+  const max = ta.scrollHeight - ta.clientHeight;
+  if (max > 0) pv.scrollTop = ta.scrollTop / max * (pv.scrollHeight - pv.clientHeight);
+});
+(function () {
+  let p = null;
+  try { p = localStorage.getItem("ar-previa"); } catch (e) {}
+  alternarPrevia(p !== "0", false);
+})();
 /* as imagens estão presas ao par disciplina+tópico; renomear qualquer um dos
    dois muda a pasta, então a tira é recarregada para mostrar o que existe lá */
 $("f-disc").addEventListener("change", carregarImagens);
 $("f-topic").addEventListener("change", carregarImagens);
+/* nome confirmado (Enter ou saída do campo) salva na hora, como o botão
+   Salvar fazia: com nome novo, a teoria é gravada como um tópico novo */
+$("f-disc").addEventListener("change", salvarAgora);
+$("f-topic").addEventListener("change", salvarAgora);
+window.addEventListener("pagehide", () => { salvarTeoria(true); salvarRascunho(true); });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { salvarTeoria(true); salvarRascunho(true); }
+});
 
-quill.on("text-change", () => {
-  if (!$("review-wrap").hidden) return;
-  const t = quill.getText().trim();
-  const p = t ? t.split(/\s+/).length : 0;
-  $("counter").textContent = `${p.toLocaleString("pt-BR")} palavra${p === 1 ? "" : "s"}`;
+/* No resumo, a mesma regra do "--" → "—" da teoria. O editor é outro (Quill),
+   então a troca acontece logo depois de o segundo hífen entrar. */
+const Delta = Quill.import("delta");
+const travQ = { pos: -1 };
+const soInline = f => Object.fromEntries(
+  ["bold", "italic", "underline", "strike"].filter(k => f[k]).map(k => [k, f[k]]));
+
+function travessaoNoResumo(delta) {
+  const ops = delta.ops || [], ult = ops[ops.length - 1];
+  if (!ult || ult.insert !== "-" || ops.length > 2 || (ops.length === 2 && ops[0].retain == null)) return;
+  const fim = (ops.length === 2 ? ops[0].retain : 0) + 1;         // logo depois do hífen digitado
+  setTimeout(() => {
+    if (fim < 2 || quill.getText(fim - 2, 2) !== "--" || (fim > 2 && quill.getText(fim - 3, 1) === "-")) return;
+    const f = quill.getFormat(fim - 1, 1);
+    if (f.code || f["code-block"]) return;
+    quill.updateContents(new Delta().retain(fim - 2).delete(2).insert("—", soInline(f)), "user");
+    quill.setSelection(fim - 1, 0, "silent");
+    travQ.pos = fim - 1;
+  }, 0);
+}
+
+// Backspace logo depois devolve os dois hífens; entra na frente do Backspace
+// padrão do editor, que senão apagaria o travessão inteiro
+quill.keyboard.addBinding({ key: 8 }, range => {
+  if (range.length || range.index !== travQ.pos || quill.getText(range.index - 1, 1) !== "—") return true;
+  const f = quill.getFormat(range.index - 1, 1);
+  quill.updateContents(new Delta().retain(range.index - 1).delete(1).insert("--", soInline(f)), "user");
+  quill.setSelection(range.index + 1, 0, "silent");
+  travQ.pos = -1;
+  return false;
+});
+quill.keyboard.bindings[8].unshift(quill.keyboard.bindings[8].pop());
+quill.root.addEventListener("keydown", e => { if (e.key !== "Backspace" && e.key !== "-") travQ.pos = -1; });
+quill.root.addEventListener("mousedown", () => { travQ.pos = -1; });
+
+quill.on("text-change", (delta, antes, origem) => {
+  if (origem === "user") { marcarRascunho(); travessaoNoResumo(delta); }
+  if ($("review-wrap").hidden) contarPalavras();
 });
 
 document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "s") {
+    e.preventDefault();               // o "salvar página" do navegador não serve para nada aqui
+    if (abaAtiva() === "pane-theory") salvarAgora();
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k") {
+    e.preventDefault(); $("busca").focus(); $("busca").select();
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); analisar(); }
 });
 

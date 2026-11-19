@@ -102,6 +102,7 @@ conceito — copiado da teoria, não do texto do usuário.
 - "coverage_percentage" considera lembrados como 1 e parciais como 0,5;
   incorretos e não lembrados contam 0.
 
+{focus_block}
 ────────────────────────
 📘 TEORIA:
 {theory_text}

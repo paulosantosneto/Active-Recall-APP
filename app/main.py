@@ -1,8 +1,9 @@
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pathlib import Path
+from urllib.parse import quote
 
 from app import storage
 from app.services.knowledge_check import run_knowledge_check
@@ -27,6 +28,15 @@ class KnowledgeCheckRequest(BaseModel):
     topic: str
     user_text: str
     mode: str = "livre"          # "livre" (sem dicas) ou "dicas" (com roteiro)
+    # modo "refazer": só estes conceitos são avaliados e nada vai para o histórico
+    focus: list[str] = []
+
+
+class DraftUpdate(BaseModel):
+    discipline: str
+    topic: str
+    text: str = ""
+    delta: dict | None = None    # conteúdo do editor com a formatação
 
 
 # --- INTERFACE ---
@@ -138,6 +148,70 @@ def delete_image(discipline: str, topic: str, name: str):
     return {"message": f"'{name}' removida."}
 
 
+# --- RASCUNHO DO RESUMO ---
+
+@app.get("/draft")
+def get_draft(discipline: str, topic: str):
+    try:
+        d = storage.ler_rascunho(discipline, topic)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return d or {"text": "", "delta": None}
+
+
+@app.post("/draft")
+def save_draft(data: DraftUpdate):
+    try:
+        storage.gravar_rascunho(data.discipline, data.topic, data.text, data.delta)
+    except FileNotFoundError:
+        raise HTTPException(404, "Tópico não encontrado")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
+
+
+# --- BUSCA ---
+
+@app.get("/search")
+def search(q: str):
+    return storage.buscar(q)
+
+
+# --- EXPORTAÇÃO E IMPORTAÇÃO ---
+#
+# O .zip sai daqui; o PDF é montado no navegador, que já sabe desenhar a
+# teoria (negrito, fórmulas, imagens) do jeito que ela aparece na prévia.
+
+@app.get("/export/zip")
+def export_zip(discipline: str):
+    try:
+        dados = storage.exportar_zip(discipline)
+        nome = storage.nome_seguro(discipline) + ".zip"
+    except FileNotFoundError:
+        raise HTTPException(404, "Disciplina não encontrada")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    # cabeçalho HTTP é latin-1: o nome com acento vai no filename* (RFC 5987)
+    simples = nome.encode("ascii", "ignore").decode().replace('"', "").strip() or "disciplina.zip"
+    return Response(dados, media_type="application/zip", headers={
+        "Content-Disposition": f"attachment; filename=\"{simples}\"; filename*=UTF-8''{quote(nome)}"})
+
+
+# O corpo é o .zip cru, como no envio de imagem. `name` é o nome do arquivo
+# sem a extensão: vira a disciplina dos .txt que vierem soltos na raiz.
+
+@app.post("/import/zip")
+async def import_zip(request: Request, name: str = "", overwrite: bool = False):
+    try:
+        padrao = storage.nome_seguro(name)
+    except ValueError:
+        padrao = storage.DISCIPLINA_PADRAO
+    try:
+        return storage.importar_zip(await request.body(), padrao, overwrite)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 # --- ROTEIRO DE DICAS ---
 #
 # GET só devolve o que já está em cache: gerar custa uma chamada ao modelo e
@@ -161,7 +235,7 @@ def get_outline(discipline: str, topic: str):
 
 @app.post("/outline")
 def make_outline(discipline: str, topic: str):
-    teoria = storage.sem_imagens(_teoria(discipline, topic))
+    teoria = storage.para_modelo(_teoria(discipline, topic))
     if len(teoria.strip()) < 80:
         raise HTTPException(400, "A teoria é curta demais para virar um roteiro.")
     try:
@@ -185,13 +259,45 @@ def check_knowledge(request: KnowledgeCheckRequest):
 
     # a disciplina é o domínio de especialidade do avaliador; o tópico entra
     # como recorte dentro dela
+    foco = [c.strip()[:200] for c in request.focus if c.strip()][:80]
     resultado = run_knowledge_check(
         domain=f"{request.discipline} (tópico: {request.topic})",
-        # os marcadores de imagem saem aqui: a imagem nunca vai para o modelo
-        theory_text=storage.sem_imagens(teoria),
+        # imagens e asteriscos de ênfase saem aqui: nada disso vai para o modelo
+        theory_text=storage.para_modelo(teoria),
         user_text=request.user_text,
+        focus=foco,
     )
-    storage.registrar(request.discipline, request.topic, resultado, request.mode)
+    if foco:
+        return _so_o_foco(resultado, foco)
+    reg = storage.registrar(request.discipline, request.topic, resultado, request.mode,
+                            request.user_text)
+    # analisado, o texto mora na tentativa; o rascunho já cumpriu o papel
+    storage.apagar_rascunho(request.discipline, request.topic)
+    # a tela mostra a mesma cobertura que foi para o histórico, recalculada a
+    # partir das contagens: a que o modelo devolve vem com frequência na
+    # escala errada (1 querendo dizer 100%)
+    resultado["coverage_percentage"] = reg["coverage"]
+    return resultado
+
+
+def _so_o_foco(resultado: dict, foco: list[str]) -> dict:
+    """Resultado do modo "refazer": só os conceitos pedidos, com as contagens e
+    a cobertura refeitas sobre eles. Não vai para o histórico nem para a agenda
+    de revisão — reescrever logo depois de ler a correção não mede memória."""
+    itens = [it for it in resultado.get("detailed_analysis") or [] if isinstance(it, dict)]
+    pedidos = {storage._canonico(c) for c in foco}
+    # o modelo às vezes devolve conceitos a mais; se ele renomeou todos, não há
+    # como separar e fica o que veio
+    dentro = [it for it in itens if storage._canonico(it.get("concept")) in pedidos]
+    itens = dentro or itens
+    conta = lambda k: sum(storage.chave_status(it.get("status")) == k for it in itens)
+    resultado.update({
+        "detailed_analysis": itens, "missing_concepts": [],
+        "total_concepts": len(itens), "remembered": conta("ok"),
+        "partially_remembered": conta("partial"), "incorrect": conta("incorrect"),
+        "not_remembered": conta("missing"),
+    })
+    resultado["coverage_percentage"] = storage.cobertura(resultado)
     return resultado
 
 
@@ -205,3 +311,17 @@ def stats():
 @app.get("/history")
 def history(discipline: str, topic: str | None = None):
     return storage.historico(discipline, topic)
+
+
+@app.get("/attempt")
+def attempt(id: str):
+    t = storage.tentativa(id)
+    if t is None:
+        raise HTTPException(404, "Tentativa não encontrada")
+    return t
+
+
+# a fila "revisar hoje": o que a revisão espaçada marcou para hoje ou antes
+@app.get("/review")
+def review():
+    return storage.revisar()
